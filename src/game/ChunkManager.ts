@@ -6,7 +6,6 @@ export class ChunkManager {
     
     private readonly chunkLength = 30;
     private readonly poolSize = 40;
-    private readonly laneWidth = 3;
 
     public onChunkRecycled?: (chunkZ: number) => void;
 

@@ -38,6 +38,7 @@ export class InputManager {
     private onKeyDown(e: KeyboardEvent): void {
         const action = this.keyBindings.get(e.code);
         if (action !== undefined) {
+            e.preventDefault();
             if (!this.activeActions.has(action)) {
                 this.triggeredActions.add(action);
             }

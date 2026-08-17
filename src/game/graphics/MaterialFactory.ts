@@ -1,5 +1,4 @@
 import * as THREE from 'three/webgpu';
-import { worldCurveNode } from '../shaders/WorldCurve';
 
 export class MaterialFactory {
     /**

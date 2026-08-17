@@ -40,9 +40,18 @@ export class UIManager {
         const btnResume = document.getElementById('btn-resume');
         const btnRestart = document.getElementById('btn-restart');
 
-        btnPlay?.addEventListener('click', () => this.hooks.onPlay());
-        btnResume?.addEventListener('click', () => this.hooks.onResume());
-        btnRestart?.addEventListener('click', () => this.hooks.onRestart());
+        btnPlay?.addEventListener('click', (e) => {
+            (e.currentTarget as HTMLElement)?.blur();
+            this.hooks.onPlay();
+        });
+        btnResume?.addEventListener('click', (e) => {
+            (e.currentTarget as HTMLElement)?.blur();
+            this.hooks.onResume();
+        });
+        btnRestart?.addEventListener('click', (e) => {
+            (e.currentTarget as HTMLElement)?.blur();
+            this.hooks.onRestart();
+        });
 
         this.stateManager.onStateChange((newState) => {
             this.syncWithState(newState);
@@ -50,6 +59,10 @@ export class UIManager {
     }
 
     private syncWithState(state: GameState): void {
+        if (state === GameState.Playing) {
+            (document.activeElement as HTMLElement)?.blur();
+        }
+
         switch (state) {
             case GameState.MainMenu:
                 this.showPanel('panel-main-menu');
