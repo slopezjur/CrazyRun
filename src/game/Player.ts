@@ -32,6 +32,8 @@ export class Player implements IBoundingVolume {
     private currentAnimState: string = 'Run';
     
     public boundingBox: THREE.Box3 = new THREE.Box3();
+    public onJump?: () => void;
+    public onSlide?: () => void;
 
     public get z(): number {
         return this.mesh.position.z;
@@ -97,8 +99,16 @@ export class Player implements IBoundingVolume {
     }
 
     public fixedUpdate(fixedDelta: number, globalSpeed: number): void {
+        if (globalSpeed === 0) {
+            // Player is crashed: freeze physics and cooldowns to maintain crash pose
+            this.syncBounds();
+            this.updateAnimationState(globalSpeed);
+            return;
+        }
+
         this.handleInput();
         this.applyLaneMovement(fixedDelta);
+        this.applySlideInterpolation(fixedDelta);
         this.applyPhysics(fixedDelta);
         this.handleSlideCooldown(fixedDelta);
         this.syncBounds();
@@ -150,10 +160,13 @@ export class Player implements IBoundingVolume {
             this.isGrounded = false;
             // Interrupt slide if jumping
             this.endSlide();
+            if (this.onJump) this.onJump();
         }
 
-        if (this.inputManager.isActionTriggered(InputAction.Slide) && this.isGrounded && !this.isSliding) {
+        if (this.inputManager.isActionTriggered(InputAction.Slide) && this.isGrounded) {
+            const wasSliding = this.isSliding;
             this.startSlide();
+            if (!wasSliding && this.onSlide) this.onSlide();
         }
     }
 
@@ -163,15 +176,22 @@ export class Player implements IBoundingVolume {
         this.mesh.position.x += (targetX - this.mesh.position.x) * this.laneLerpSpeed * fixedDelta;
     }
 
+    private applySlideInterpolation(fixedDelta: number): void {
+        const targetScaleY = this.isSliding ? this.slideScaleY : this.normalScaleY;
+        const targetRotationX = this.isSliding ? -0.4 : 0.0;
+        const slideTransitionSpeed = 16.0;
+
+        this.mesh.scale.y += (targetScaleY - this.mesh.scale.y) * slideTransitionSpeed * fixedDelta;
+        this.mesh.rotation.x += (targetRotationX - this.mesh.rotation.x) * slideTransitionSpeed * fixedDelta;
+    }
+
     private applyPhysics(fixedDelta: number): void {
         // Apply Gravity
         this.yVelocity += this.gravity * fixedDelta;
         this.mesh.position.y += this.yVelocity * fixedDelta;
 
-        // Ground Detection
-        // Base mesh height calculation based on scale
-        const currentHeight = this.mesh.scale.y === this.slideScaleY ? 1.0 : 2.0; 
-        const floorY = currentHeight / 2; // Bottom of capsule touches Y=0
+        // Dynamic Ground Detection based on continuous scale
+        const floorY = this.mesh.scale.y; // Center Y equals scale.y to keep bottom at Y=0
 
         if (this.mesh.position.y <= floorY) {
             this.mesh.position.y = floorY;
@@ -185,28 +205,23 @@ export class Player implements IBoundingVolume {
     private startSlide(): void {
         this.isSliding = true;
         this.slideTimer = this.slideDuration;
-        
-        // Halve Y-scale and reposition flush with floor
-        this.mesh.scale.y = this.slideScaleY;
-        this.mesh.position.y = 0.5; // New floorY is 0.5
     }
 
     private endSlide(): void {
         if (!this.isSliding) return;
         this.isSliding = false;
-        this.mesh.scale.y = this.normalScaleY;
-        
-        // Prevent getting stuck in the floor when un-sliding
-        if (this.isGrounded) {
-            this.mesh.position.y = 1.0; 
-        }
     }
 
     private handleSlideCooldown(fixedDelta: number): void {
         if (this.isSliding) {
-            this.slideTimer -= fixedDelta;
-            if (this.slideTimer <= 0) {
-                this.endSlide();
+            if (this.inputManager.isActionActive(InputAction.Slide)) {
+                // Keep slide active indefinitely while key/touch is held down
+                this.slideTimer = this.slideDuration;
+            } else {
+                this.slideTimer -= fixedDelta;
+                if (this.slideTimer <= 0) {
+                    this.endSlide();
+                }
             }
         }
     }

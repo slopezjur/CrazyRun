@@ -20,6 +20,12 @@ async function bootstrap() {
             onRestart: () => {
                 gameScene.reset();
                 engine.stateManager.changeState(GameState.Playing);
+            },
+            onToggleAudio: () => {
+                return gameScene.audioManager.toggleMute();
+            },
+            isAudioMuted: () => {
+                return gameScene.audioManager.isMuted;
             }
         });
         

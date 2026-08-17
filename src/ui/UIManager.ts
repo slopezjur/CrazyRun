@@ -1,9 +1,12 @@
 import { GameStateManager, GameState } from '../core/GameStateManager';
+import { I18nService, Translations, Language } from '../core/I18nService';
 
 export interface IGameHooks {
     onPlay: () => void;
     onResume: () => void;
     onRestart: () => void;
+    onToggleAudio?: () => boolean;
+    isAudioMuted?: () => boolean;
 }
 
 export class UIManager {
@@ -11,6 +14,9 @@ export class UIManager {
     private scoreDisplay: HTMLElement | null;
     private finalScoreDisplay: HTMLElement | null;
     private highScoreDisplay: HTMLElement | null;
+    private btnLang: HTMLElement | null;
+    private btnAudio: HTMLElement | null;
+    public i18n: I18nService;
 
     constructor(private stateManager: GameStateManager, private hooks: IGameHooks) {
         this.panels.set('panel-main-menu', document.getElementById('panel-main-menu'));
@@ -21,9 +27,36 @@ export class UIManager {
         this.scoreDisplay = document.getElementById('score-display');
         this.finalScoreDisplay = document.getElementById('final-score-display');
         this.highScoreDisplay = document.getElementById('high-score-display');
+        this.btnLang = document.getElementById('btn-lang');
+        this.btnAudio = document.getElementById('btn-audio');
 
+        this.i18n = new I18nService();
+        this.i18n.onChange((lang, t) => this.applyTranslations(lang, t));
+
+        this.updateAudioButtonState();
         this.bindEvents();
         this.syncWithState(this.stateManager.currentState);
+    }
+
+    private updateAudioButtonState(): void {
+        if (this.btnAudio && this.hooks.isAudioMuted) {
+            const muted = this.hooks.isAudioMuted();
+            this.btnAudio.innerText = muted ? '🔇' : '🔊';
+        }
+    }
+
+    private applyTranslations(lang: Language, t: Translations): void {
+        if (this.btnLang) {
+            this.btnLang.innerText = lang === 'es' ? '🌐 Español' : '🌐 English';
+        }
+
+        const elements = document.querySelectorAll<HTMLElement>('[data-i18n]');
+        elements.forEach((el) => {
+            const key = el.getAttribute('data-i18n') as keyof Translations;
+            if (key && t[key]) {
+                el.innerText = t[key];
+            }
+        });
     }
 
     public updateLiveScore(score: number): void {
@@ -39,6 +72,19 @@ export class UIManager {
         const btnPlay = document.getElementById('btn-play');
         const btnResume = document.getElementById('btn-resume');
         const btnRestart = document.getElementById('btn-restart');
+
+        this.btnAudio?.addEventListener('click', (e) => {
+            (e.currentTarget as HTMLElement)?.blur();
+            if (this.hooks.onToggleAudio) {
+                const isMuted = this.hooks.onToggleAudio();
+                if (this.btnAudio) this.btnAudio.innerText = isMuted ? '🔇' : '🔊';
+            }
+        });
+
+        this.btnLang?.addEventListener('click', (e) => {
+            (e.currentTarget as HTMLElement)?.blur();
+            this.i18n.cycleLanguage();
+        });
 
         btnPlay?.addEventListener('click', (e) => {
             (e.currentTarget as HTMLElement)?.blur();

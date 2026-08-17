@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { Entity } from './entities/Entity';
-import { Obstacle } from './entities/Obstacle';
+import { Obstacle, ObstacleType } from './entities/Obstacle';
 import { Collectible } from './entities/Collectible';
 import { EntityPool } from './entities/EntityPool';
 
@@ -34,7 +34,16 @@ export class EntityManager {
             const laneX = shuffledLanes[i];
             if (i < numObstacles) {
                 const obs = this.obstaclePool.getInactive();
-                if (obs) obs.spawn(laneX, 0, chunkZ);
+                if (obs) {
+                    const rand = Math.random();
+                    let obstacleType = ObstacleType.FullWall;
+                    if (rand < 0.35) {
+                        obstacleType = ObstacleType.LowHurdle;
+                    } else if (rand < 0.70) {
+                        obstacleType = ObstacleType.HighArch;
+                    }
+                    obs.spawn(laneX, 0, chunkZ, obstacleType);
+                }
             } else {
                 if (Math.random() > 0.5) {
                     const coin = this.collectiblePool.getInactive();

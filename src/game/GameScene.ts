@@ -44,6 +44,13 @@ export class GameScene implements IUpdatable {
         const storage = new BrowserStorage();
         this.scoreTracker = new ScoreTracker(storage);
         this.audioManager = new AudioManager(this.camera);
+
+        this.player.onJump = () => {
+            if (this.isPlaying) this.audioManager.playJumpSound();
+        };
+        this.player.onSlide = () => {
+            if (this.isPlaying) this.audioManager.playSlideSound();
+        };
         
         this.entityManager = new EntityManager(this.scene);
         
@@ -55,12 +62,13 @@ export class GameScene implements IUpdatable {
                 this.isPlaying = false;
                 this.globalSpeed = 0;
                 this.cameraManager.triggerShake(2.0); // Trigger shake on crash!
+                this.audioManager.playCrashSound();
                 this.scoreTracker.finalizeScore();
                 if (this.onGameOver) this.onGameOver();
             },
-            (coin) => {
+            (_coin) => {
                 this.scoreTracker.addBonus(100);
-                this.audioManager.playCoinSound(coin.mesh.position);
+                this.audioManager.playCoinSound();
             }
         );
         
@@ -137,8 +145,8 @@ export class GameScene implements IUpdatable {
         this.chunkManager.reset();
         this.entityManager.reset();
         
-        // Repopulate initial chunks
-        for (let i = 10; i < 40; i++) {
+        // Repopulate initial chunks (skipping 5 chunks for a 5s start buffer)
+        for (let i = 5; i < 40; i++) {
             this.entityManager.spawnOnChunk(-i * 30);
         }
         

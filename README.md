@@ -1,73 +1,108 @@
 # CrazyRun - WebGPU Endless Runner
 
-CrazyRun is a high-performance, 3D endless runner web game built entirely using standard web technologies and the experimental WebGPU renderer via Three.js. It features a robust architecture based on SOLID principles, completely decoupling game logic from the rendering loop.
+CrazyRun is a high-performance 3D endless runner web game built with TypeScript, Three.js (WebGPU renderer), and Vite. It features decoupled game logic, zero runtime memory allocation during gameplay, full mobile touch and swipe gesture support, and dual-language localization.
 
-## Architecture & Design
+---
 
-The project is structured with scalability and performance in mind:
+## Core Architecture & Systems
 
-### 1. SOLID Principles
-- **Single Responsibility Principle (SRP):** Classes are focused on singular tasks. 
-  - `Engine.ts` handles exclusively the Three.js WebGPU bootstrapping, animation loop, and fixed timestep timing.
-  - `GameStateManager.ts` acts solely as a state machine tracking current flow.
-  - `CameraManager.ts` cleanly isolates camera dampening, positioning, and FOV interpolation.
-- **Dependency Inversion Principle (DIP) & Open/Closed Principle (OCP):** Higher-level systems rely on abstractions. 
-  - `CameraManager` receives a generic `THREE.Object3D` target.
-  - `EntityManager` utilizes a generic `EntityPool<T>` injected with a factory function (e.g. `() => new Obstacle()`), allowing infinite types of entities to be pooled without touching the core logic.
-  - `CollisionManager` relies exclusively on `IBoundingVolume` and `ICollisionTarget` interfaces rather than concrete classes.
-  - `MaterialFactory` exclusively handles the initialization and TSL injection of Node Materials.
-  - `AnimationController` encapsulates all `THREE.AnimationMixer` logic and state, removing this burden from the `Player`.
-  - **Presentation Layer Decoupling**: 
-    - `ScoreTracker` purely manages scoring logic without touching the DOM, using a generic `IScoreStorage` interface for persistence.
-    - `UIManager` handles all DOM manipulation and CSS transitions, completely separate from game state logic.
-    - `AudioManager` exposes primitive control methods (e.g., `playBGM()`) and is orchestrated by `main.ts`, decoupling it entirely from the `GameStateManager`.
+### 1. Engine & Simulation Loop
+- **`Engine.ts`**: Orchestrates Three.js rendering, WebGPU initialization, stats monitoring, and the central animation loop.
+- **Fixed Timestep Accumulator**: Physics and logic run deterministically at 60 Hz (`fixedUpdate`), completely decoupled from high-refresh monitor rendering loops (`update`).
+- **Anchored Player & Scrolling World**: The player and camera are anchored on the Z-axis ($Z = 0$). The `ChunkManager` and `EntityManager` translate the environment towards the player ($+Z$) and recycle passing chunks to the horizon ($-Z$), eliminating floating-point precision loss over infinite distances.
 
-### 2. Performance & Memory Management
-- **Explicit Memory Disposal:** `ResourceManager.ts` recursively traverses object hierarchies to proactively invoke `.dispose()` on WebGL primitives (geometries, materials, textures), preventing memory leaks during Vite HMR reloads or runtime state resets.
-- **Asset Optimization:** `AssetManager.ts` initializes `DRACOLoader` for compressed 3D `.glb` meshes and `KTX2Loader` for highly-optimized GPU basis textures, paired with a `createLODWrapper` method for dynamic High/Low poly swapping at a distance.
-- **Vite Chunking:** `vite.config.ts` forces Rollup's `manualChunks` to split the massive `three` library into a cached `vendor` chunk, ensuring ultra-fast loading for returning players.
+### 2. Gameplay & Entity Management
+- **`Player.ts`**: Manages 3-lane lateral positioning with dampened interpolation, jump/gravity physics, smooth slide scaling (`scale.y` lerp), dynamic floor grounding, forward posture tilt, and crash posture freezing.
+- **`EntityManager.ts` & `EntityPool.ts`**: Generic object pooling for obstacles and collectible coins with zero garbage-collection overhead during runs.
+- **`Obstacle.ts`**: Multi-tier obstacles with component-accurate collision bounding volumes:
+  - **High Arch Barrier**: Overhead beam with an open clearance gap underneath — requires sliding.
+  - **Low Hurdle**: Short barrier on the floor — requires jumping.
+  - **Full Wall**: Solid full-height barrier — requires a lane change.
+- **`CollisionManager.ts`**: Two-phase collision detection using a broad Z-proximity gate followed by narrow AABB intersection testing against abstract `IBoundingVolume` targets.
 
-The engine utilizes a **Fixed Time Step Accumulator** pattern combined with a **Scrolling World Paradigm**:
-- **Physics/Logic (`fixedUpdate`)**: Runs precisely at 60 Updates Per Second (UPS), regardless of monitor refresh rates. 
-- **Anchored Entities**: The Camera and Player are completely anchored on the Z-axis (Z=0). They never move forward in 3D space.
-- **World Scrolling**: The `ChunkManager` constantly translates the world chunks towards the player (`+Z`). As chunks pass the camera, they are perfectly snapped back to the endless horizon (`-Z`). This completely eliminates WebGL floating-point precision loss over infinite runs, rendering the previous "World Shift" logic mathematically unreachable but structurally sound.
-- **Rendering (`update`)**: The `WebGPURenderer.render()` call occurs completely isolated at the end of the frame, rendering the interpolated result of the logic.
+### 3. State, Presentation & Audio
+- **`GameStateManager.ts`**: State machine controlling game phases (`MainMenu`, `Playing`, `Paused`, `GameOver`).
+- **`ScoreTracker.ts`**: Speed-based score accumulation and bonus tracking decoupled from DOM rendering via the `IScoreStorage` interface (`BrowserStorage`).
+- **`UIManager.ts`**: Manages modal transitions, responsive HUD displays, button blur focus handling, and real-time translation/audio updates.
+- **`AudioManager.ts`**: Zero-latency procedural audio engine utilizing the browser's **Web Audio API** (`AudioContext` oscillators & gain envelopes) with zero external asset dependencies:
+  - **Coin Pickup**: Two-tone arcade chime ($987\text{Hz} \rightarrow 1318\text{Hz}$, B5 to E6).
+  - **Jump**: Upward pitch sweep ($150\text{Hz} \rightarrow 450\text{Hz}$).
+  - **Slide**: Friction frequency drop ($240\text{Hz} \rightarrow 90\text{Hz}$).
+  - **Crash**: Low impact bass crunch ($160\text{Hz} \rightarrow 30\text{Hz}$).
+  - **Master Gain & Mute**: Global volume control with persistent `localStorage` saving.
+- **`ResourceManager.ts`**: Recursive disposal of geometries, materials, and textures on shutdown, plus asynchronous `GLTFLoader` integration for 3D animated character meshes.
 
-### 3. State Machine & Input Management
-- **State Machine**: Execution routing is governed by the `GameStateManager`. The `Engine.ts` inspects the active `GameState` and routes `fixedUpdate` logic exclusively to the functions relevant to that state.
-- **Semantic Action Binding**: The `InputManager` complies with the Open/Closed Principle by mapping raw hardware inputs (e.g., `KeyW`, `Space`) to semantic `InputAction` enums (e.g., `Jump`). This abstracts hardware dependencies away from gameplay logic.
-
-## Tech Stack
-- **Engine:** [Three.js](https://threejs.org/) (specifically `three/webgpu` module).
-- **Language:** TypeScript.
-- **Bundler:** Vite (using `vite-plugin-top-level-await` for WebGPU adapter initialization).
+---
 
 ## Controls
-- **Escape:** Toggle Pause / Resume.
-- *(Future Implementations)*: Movement (A/D/Left/Right), Jump (W/Up/Space), Slide (S/Down).
+
+### Desktop
+| Action | Key Bindings |
+| :--- | :--- |
+| **Move Left / Right** | <kbd>A</kbd> / <kbd>D</kbd> or <kbd>←</kbd> / <kbd>→</kbd> |
+| **Jump** | <kbd>W</kbd> or <kbd>↑</kbd> or <kbd>Space</kbd> |
+| **Slide / Crouch** | <kbd>S</kbd> or <kbd>↓</kbd> *(Hold to slide continuously, press to refresh)* |
+| **Pause / Resume** | <kbd>Esc</kbd> |
+
+*A semi-transparent keycap HUD is displayed in the bottom-left corner on desktop screens.*
+
+### Mobile & Touch Devices
+- **Swipe Gestures**:
+  - Swipe Left / Right $\rightarrow$ Change Lane
+  - Swipe Up $\rightarrow$ Jump
+  - Swipe Down $\rightarrow$ Slide
+- **Virtual Thumb Controls**:
+  - **Bottom-Left Cluster**: Left (`◀`) & Right (`▶`) lane buttons.
+  - **Bottom-Right Cluster**: Jump (`▲`) & Slide (`▼`) action buttons.
+
+---
+
+## Localization (i18n)
+
+The game includes built-in localization managed by `I18nService.ts`:
+- Supported Languages: **English** (`en`) and **Español** (`es`).
+- Features a `🌐 English` / `🌐 Español` toggle button on the start screen that cycles languages and updates all UI elements in real time.
+- Selected language is automatically persisted to `localStorage`.
+
+---
+
+## Tech Stack
+
+- **Engine:** [Three.js](https://threejs.org/) (`three/webgpu` module)
+- **Language:** TypeScript
+- **Bundler:** Vite (with `vite-plugin-top-level-await`)
+- **Deployment:** GitHub Pages via GitHub Actions
+
+---
 
 ## Setup & Development
 
 ### Prerequisites
-- Node.js installed.
-- A WebGPU-compatible modern browser (Chrome 113+, Edge 113+).
+- Node.js (v18+)
+- WebGPU-compatible modern browser (Chrome 113+, Edge 113+, Safari 18+)
 
 ### Installation
-1. Clone the repository.
-2. Install dependencies (bypassing strict SSL if necessary on local proxy environments):
-   ```bash
-   npm install --strict-ssl=false
-   ```
+```bash
+npm install
+```
 
-### Running Locally
-Start the Vite development server:
+### Local Development
 ```bash
 npm run dev
 ```
-Navigate to the local address provided (typically `http://localhost:5173/`).
+Open `http://localhost:5173/` in your browser.
 
-### Building for Production
+### Production Build
 ```bash
 npm run build
 ```
-This leverages `tsc` for type-checking and `esbuild` for minified chunking.
+Type-checks the project with `tsc` and compiles minified, chunk-split assets to `dist/`.
+
+---
+
+## Deployment to GitHub Pages
+
+The repository includes an automated GitHub Actions workflow (`.github/workflows/deploy.yml`):
+1. Push changes to the `main` branch.
+2. In GitHub repository **Settings** > **Pages** > **Build and deployment**, set **Source** to **GitHub Actions**.
+3. The workflow compiles the build and publishes the site automatically.

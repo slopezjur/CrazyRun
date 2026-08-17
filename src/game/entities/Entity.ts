@@ -1,12 +1,18 @@
 import * as THREE from 'three/webgpu';
 
 export abstract class Entity {
-    public mesh: THREE.Mesh;
+    public mesh: THREE.Object3D;
     public isActive: boolean = false;
     public boundingBox: THREE.Box3 = new THREE.Box3();
 
-    constructor(geometry: THREE.BufferGeometry, material: THREE.NodeMaterial) {
-        this.mesh = new THREE.Mesh(geometry, material);
+    constructor(meshOrGeometry: THREE.BufferGeometry | THREE.Object3D, material?: THREE.Material) {
+        if (meshOrGeometry instanceof THREE.Object3D) {
+            this.mesh = meshOrGeometry;
+        } else if (material) {
+            this.mesh = new THREE.Mesh(meshOrGeometry, material);
+        } else {
+            this.mesh = new THREE.Group();
+        }
         this.mesh.visible = false;
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
