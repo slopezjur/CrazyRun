@@ -13,8 +13,10 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['three']
+        manualChunks(id) {
+          if (id.includes('node_modules/three')) {
+            return 'three-vendor';
+          }
         }
       }
     }

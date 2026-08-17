@@ -3,6 +3,7 @@ import { InputManager, InputAction } from '../core/InputManager';
 import { IBoundingVolume } from './CollisionManager';
 import { MaterialFactory } from './graphics/MaterialFactory';
 import { AnimationController } from './graphics/AnimationController';
+import { ResourceManager } from '../core/ResourceManager';
 
 export class Player implements IBoundingVolume {
     public mesh: THREE.Group;
@@ -55,9 +56,8 @@ export class Player implements IBoundingVolume {
         this.syncBounds();
 
         // Asynchronous Character Loading
-        import('../core/ResourceManager').then(({ ResourceManager }) => {
-            ResourceManager.loadModel('/models/character.glb').then(gltf => {
-                if (gltf) {
+        ResourceManager.loadModel('/models/character.glb').then(gltf => {
+            if (gltf) {
                     this.mesh.remove(fallbackMesh);
                     const characterModel = gltf.scene;
                     
@@ -95,7 +95,6 @@ export class Player implements IBoundingVolume {
                     this.animController.fadeToAction('Run', 0.0);
                 }
             });
-        });
     }
 
     public fixedUpdate(fixedDelta: number, globalSpeed: number): void {
