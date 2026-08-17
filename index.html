@@ -2,11 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CrazyRun - WebGPU Environment Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>CrazyRun</title>
   </head>
   <body>
-    <div id="debug-overlay" style="position: absolute; top: 60px; left: 10px; color: #00ffcc; font-family: monospace; background: rgba(0,0,0,0.5); padding: 10px; pointer-events: none; z-index: 100;">
+    <div id="debug-overlay" style="position: absolute; top: 55px; left: 10px; color: #00ffcc; font-family: monospace; background: rgba(0,0,0,0.5); padding: 6px 10px; border-radius: 6px; pointer-events: none; z-index: 100; font-size: 0.8rem;">
       State: MainMenu<br>UPS: 0
     </div>
     
@@ -28,6 +28,34 @@
           <div class="score-container">
             <span class="score-label">SCORE</span>
             <span id="score-display">0</span>
+          </div>
+
+          <!-- Desktop Key Hints -->
+          <div id="controls-hud-desktop">
+            <div class="control-group">
+              <span class="keycap">A</span><span class="keycap">D</span>
+              <span class="control-label">Lane</span>
+            </div>
+            <div class="control-group">
+              <span class="keycap">W</span><span class="keycap space">Space</span>
+              <span class="control-label">Jump</span>
+            </div>
+            <div class="control-group">
+              <span class="keycap">S</span>
+              <span class="control-label">Slide</span>
+            </div>
+          </div>
+
+          <!-- Mobile Touch Action Buttons -->
+          <div id="controls-touch-mobile">
+            <div class="touch-cluster left-cluster">
+              <button id="btn-touch-left" class="touch-btn" aria-label="Move Left">◀</button>
+              <button id="btn-touch-right" class="touch-btn" aria-label="Move Right">▶</button>
+            </div>
+            <div class="touch-cluster right-cluster">
+              <button id="btn-touch-jump" class="touch-btn action-jump" aria-label="Jump">▲</button>
+              <button id="btn-touch-slide" class="touch-btn action-slide" aria-label="Slide">▼</button>
+            </div>
           </div>
         </div>
 
