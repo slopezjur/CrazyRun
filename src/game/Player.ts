@@ -97,6 +97,20 @@ export class Player implements IBoundingVolume {
             });
     }
 
+    public reset(): void {
+        this.currentLane = 0;
+        this.yVelocity = 0;
+        this.isGrounded = true;
+        this.isSliding = false;
+        this.slideTimer = 0;
+        this.mesh.position.set(0, 1, this.startZ);
+        this.mesh.scale.set(1, 1, 1);
+        this.mesh.rotation.set(0, 0, 0);
+        this.currentAnimState = 'Run';
+        this.animController.fadeToAction('Run', 0.0);
+        this.syncBounds();
+    }
+
     public fixedUpdate(fixedDelta: number, globalSpeed: number): void {
         if (globalSpeed === 0) {
             // Player is crashed: freeze physics and cooldowns to maintain crash pose

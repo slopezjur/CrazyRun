@@ -323,25 +323,25 @@ h2 {
 
 .touch-cluster {
   display: flex;
-  gap: 0.8rem;
+  gap: 1.0rem;
   pointer-events: auto;
 }
 
 .touch-cluster.right-cluster {
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 1.0rem;
 }
 
 .touch-btn {
-  width: clamp(4.0rem, 15vw, 5.0rem);
-  height: clamp(4.0rem, 15vw, 5.0rem);
+  width: clamp(5.3rem, 19vw, 6.6rem);
+  height: clamp(5.3rem, 19vw, 6.6rem);
   border-radius: 50%;
-  border: 2.5px solid rgba(255, 255, 255, 0.25);
+  border: 3px solid rgba(255, 255, 255, 0.3);
   background: rgba(20, 20, 20, 0.65);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   color: white;
-  font-size: 1.5rem;
+  font-size: 2.0rem;
   display: flex;
   justify-content: center;
   align-items: center;

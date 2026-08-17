@@ -65,6 +65,15 @@ export class CameraManager {
         this.shakeIntensity = intensity;
     }
 
+    public reset(): void {
+        this.shakeIntensity = 0;
+        this.basePosition.set(0, this.yOffset, this.zOffset);
+        this.camera.position.set(0, this.yOffset, this.zOffset);
+        this.currentFov = this.baseFov;
+        this.camera.fov = this.baseFov;
+        this.camera.updateProjectionMatrix();
+    }
+
     private updateRotation(): void {
         // The focal point is deep in the horizon but matches the camera's X to look straight down the track
         this.focalPoint.x = this.camera.position.x * 0.5; // Slight look-ahead tracking

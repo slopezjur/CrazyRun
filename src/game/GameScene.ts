@@ -144,13 +144,12 @@ export class GameScene implements IUpdatable {
         this.scoreTracker.reset();
         this.chunkManager.reset();
         this.entityManager.reset();
+        this.cameraManager.reset();
+        this.player.reset();
         
         // Repopulate initial chunks (skipping 5 chunks for a 5s start buffer)
         for (let i = 5; i < 40; i++) {
             this.entityManager.spawnOnChunk(-i * 30);
         }
-        
-        // Reset player
-        this.player.mesh.position.set(0, 1, 0);
     }
 }

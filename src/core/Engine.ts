@@ -66,9 +66,11 @@ export class Engine {
     }
 
     private onResize(): void {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
+        const width = Math.max(1, window.innerWidth);
+        const height = Math.max(1, window.innerHeight);
+        this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setSize(width, height);
     }
 
     public addUpdatable(entity: IUpdatable): void {
@@ -85,7 +87,10 @@ export class Engine {
     }
 
     private masterUpdate(): void {
-        this.stats.begin();
+        try {
+            this.stats.begin();
+        } catch {}
+
         const deltaTime = this.clock.getDelta();
         
         // Prevent spiral of death on extreme lag
@@ -120,7 +125,10 @@ export class Engine {
 
         // Render Call explicitly at the very end
         this.renderer.render(this.scene, this.camera);
-        this.stats.end();
+
+        try {
+            this.stats.end();
+        } catch {}
     }
 
     private routeFixedUpdate(fixedDelta: number): void {
