@@ -311,10 +311,10 @@ h2 {
 #controls-touch-mobile {
   display: none;
   position: absolute;
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  bottom: clamp(3.2rem, 7.5vh, 4.8rem);
   left: 0;
   width: 100%;
-  padding: 0 max(1.2rem, env(safe-area-inset-right, 1.2rem)) 0 max(1.2rem, env(safe-area-inset-left, 1.2rem));
+  padding: 0 clamp(1rem, 4vw, 1.8rem);
   justify-content: space-between;
   align-items: flex-end;
   pointer-events: none;
@@ -323,25 +323,25 @@ h2 {
 
 .touch-cluster {
   display: flex;
-  gap: 0.9rem;
+  gap: 0.8rem;
   pointer-events: auto;
 }
 
 .touch-cluster.right-cluster {
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 0.8rem;
 }
 
 .touch-btn {
-  width: clamp(4.4rem, 16vw, 5.5rem);
-  height: clamp(4.4rem, 16vw, 5.5rem);
+  width: clamp(4.0rem, 15vw, 5.0rem);
+  height: clamp(4.0rem, 15vw, 5.0rem);
   border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, 0.25);
   background: rgba(20, 20, 20, 0.65);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   color: white;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   display: flex;
   justify-content: center;
   align-items: center;
