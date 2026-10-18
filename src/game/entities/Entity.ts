@@ -1,58 +1,76 @@
-import * as THREE from 'three/webgpu';
+import { Box3, type Object3D } from 'three';
+import type { CollisionResponse, ICollisionTarget } from '../CollisionManager';
+import type { SpawnData } from '../SpawnPolicy';
 
-export abstract class Entity {
-    public mesh: THREE.Object3D;
-    public isActive: boolean = false;
-    public boundingBox: THREE.Box3 = new THREE.Box3();
+export interface EntityVisual {
+    readonly mesh: Object3D;
+    readonly collider?: Object3D;
+    readonly yOffset?: number;
+}
 
-    constructor(meshOrGeometry: THREE.BufferGeometry | THREE.Object3D, material?: THREE.Material) {
-        if (meshOrGeometry instanceof THREE.Object3D) {
-            this.mesh = meshOrGeometry;
-        } else if (material) {
-            this.mesh = new THREE.Mesh(meshOrGeometry, material);
-        } else {
-            this.mesh = new THREE.Group();
-        }
+export interface IAnimatedEntity {
+    animate(delta: number): void;
+}
+
+export interface IManagedEntity extends ICollisionTarget {
+    spawn(x: number, y: number, z: number, data?: SpawnData): void;
+    scroll(amount: number): void;
+    expire(): void;
+    despawn(): void;
+}
+
+export abstract class Entity implements IManagedEntity {
+    private metadata: SpawnData = {};
+    public readonly mesh: Object3D;
+    public readonly boundingBox = new Box3();
+    private active = false;
+    private readonly collider: Object3D;
+    private readonly yOffset: number;
+
+    constructor(visual: EntityVisual) {
+        this.mesh = visual.mesh;
+        this.collider = visual.collider ?? visual.mesh;
+        this.yOffset = visual.yOffset ?? 0;
         this.mesh.visible = false;
-        this.mesh.castShadow = true;
-        this.mesh.receiveShadow = true;
     }
 
-    public abstract get isSolid(): boolean;
+    public get spawnData(): SpawnData { return this.metadata; }
+    public get position(): Readonly<{ x: number; y: number; z: number }> { return this.mesh.position; }
+
+    public get isActive(): boolean {
+        return this.active;
+    }
 
     public get z(): number {
         return this.mesh.position.z;
     }
 
-    public onCollide(): void {
-        if (!this.isSolid) {
-            this.despawn(); // Automatically despawn triggers (coins)
-        }
-    }
+    public abstract onCollide(): CollisionResponse;
 
-    public spawn(x: number, y: number, z: number): void {
-        this.mesh.position.set(x, y, z);
-        this.isActive = true;
+    public spawn(x: number, y: number, z: number, data: SpawnData = {}): void {
+        this.metadata = data;
+        this.mesh.position.set(x, y + this.yOffset, z);
+        this.active = true;
         this.mesh.visible = true;
         this.syncBounds();
     }
 
     public despawn(): void {
-        this.isActive = false;
+        this.active = false;
         this.mesh.visible = false;
     }
 
+    public expire(): void { this.despawn(); }
+
     public scroll(amount: number): void {
-        if (this.isActive) {
-            this.mesh.position.z += amount;
-            this.syncBounds();
-        }
+        if (!this.active) return;
+        this.mesh.position.z += amount;
+        this.syncBounds();
     }
 
     public syncBounds(): void {
-        if (!this.isActive) return;
-        this.boundingBox.setFromObject(this.mesh);
+        if (!this.active) return;
+        this.mesh.updateWorldMatrix(true, true);
+        this.boundingBox.setFromObject(this.collider);
     }
-
-    public abstract animate(deltaTime: number): void;
 }

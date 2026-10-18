@@ -1,155 +1,138 @@
-import * as THREE from 'three/webgpu';
-import { IUpdatable } from '../core/Engine';
-import { ChunkManager } from './ChunkManager';
-import { Player } from './Player';
-import { InputManager } from '../core/InputManager';
-import { CameraManager } from './CameraManager';
-import { EntityManager } from './EntityManager';
-import { CollisionManager } from './CollisionManager';
-import { ScoreTracker } from './ScoreTracker';
-import { AudioManager } from './AudioManager';
-import { BrowserStorage } from '../core/StorageService';
+import { GameState, type IGameStateReader } from '../core/GameStateManager';
+import { Signal, type Unsubscribe } from '../core/Signal';
+import type { ISoundPlayer } from './AudioManager';
+import type { IChunkManager } from './ChunkManager';
+import type { IEntityManager } from './EntityManager';
+import type { IPlayer } from './Player';
+import type { IScoreTracker } from './ScoreTracker';
+import type { IRunSimulation } from './RunSession';
+import type { IRunInteractions } from './RunInteractions';
 
-export class GameScene implements IUpdatable {
-    private chunkManager: ChunkManager;
-    private player: Player;
-    private inputManager: InputManager;
-    private cameraManager: CameraManager;
-    private entityManager: EntityManager;
-    private collisionManager: CollisionManager;
-    public scoreTracker: ScoreTracker;
-    public audioManager: AudioManager;
-    
-    // Global Game Speed
-    public globalSpeed: number = 30; // units per second
-    private readonly baseSpeed: number = 30;
-    private readonly maxSpeed: number = 80;
-    
-    public isPlaying: boolean = false;
-    
-    public onGameOver?: () => void;
+export interface GameSceneDependencies {
+    readonly state: IGameStateReader;
+    readonly player: IPlayer;
+    readonly chunks: IChunkManager;
+    readonly entities: IEntityManager;
+    readonly collisions: { checkCollisions(): void };
+    readonly camera: { update(delta: number, speed: number): void; reset(): void; triggerShake(intensity: number): void };
+    readonly score: IScoreTracker;
+    readonly audio: ISoundPlayer;
+    readonly input: { resetTriggers(): void };
+    readonly run: IRunSimulation;
+    readonly interactions?: IRunInteractions;
+    readonly initialEmptyChunks?: number;
+}
 
-    constructor(
-        private scene: THREE.Scene, 
-        private camera: THREE.PerspectiveCamera
-    ) {
-        this.inputManager = new InputManager();
-        this.setupEnvironment();
-        this.setupLighting();
-        
-        this.chunkManager = new ChunkManager(this.scene);
-        this.player = new Player(this.scene, this.inputManager);
-        this.cameraManager = new CameraManager(this.camera, this.player.mesh);
-        
-        const storage = new BrowserStorage();
-        this.scoreTracker = new ScoreTracker(storage);
-        this.audioManager = new AudioManager(this.camera);
+export interface IGameplayOutcomes {
+    readonly isPlaying: boolean;
+    crash(): void;
+    collect(points: number): void;
+}
+export interface IGameRuntime {
+    readonly isPlaying: boolean;
+    readonly globalSpeed: number;
+    reset(): void;
+    fixedUpdate(delta: number): void;
+    update(delta: number): void;
+    onGameOver(listener: () => void): Unsubscribe;
+}
 
-        this.player.onJump = () => {
-            if (this.isPlaying) this.audioManager.playJumpSound();
-        };
-        this.player.onSlide = () => {
-            if (this.isPlaying) this.audioManager.playSlideSound();
-        };
-        
-        this.entityManager = new EntityManager(this.scene);
-        
-        this.collisionManager = new CollisionManager(
-            this.player,
-            () => this.entityManager.getActiveEntities(),
-            () => {
-                if (this.globalSpeed === 0) return; // Prevent multiple triggers
-                this.isPlaying = false;
-                this.globalSpeed = 0;
-                this.cameraManager.triggerShake(2.0); // Trigger shake on crash!
-                this.audioManager.playCrashSound();
-                this.scoreTracker.finalizeScore();
-                if (this.onGameOver) this.onGameOver();
-            },
-            (_coin) => {
-                this.scoreTracker.addBonus(100);
-                this.audioManager.playCoinSound();
+export class GameScene implements IGameplayOutcomes, IGameRuntime {
+    private speed = 30;
+    private readonly baseSpeed = 30;
+    private readonly gameOver = new Signal<void>();
+    private readonly subscriptions: Unsubscribe[];
+
+    constructor(private readonly dependencies: GameSceneDependencies) {
+        this.subscriptions = [
+            dependencies.player.onAction(action => {
+                if (this.isPlaying) dependencies.audio.play(action);
+            }),
+            dependencies.chunks.onChunkRecycled(z => {
+                if (this.isPlaying) dependencies.entities.spawnOnChunk(z);
+            })
+        ];
+    }
+
+    public get isPlaying(): boolean {
+        return this.dependencies.state.currentState === GameState.Playing;
+    }
+
+    public get globalSpeed(): number {
+        return this.speed;
+    }
+
+    public onGameOver(listener: () => void): Unsubscribe {
+        return this.gameOver.subscribe(listener);
+    }
+
+    public crash(): void {
+        if (!this.isPlaying || this.speed === 0) return;
+        this.speed = 0;
+        this.dependencies.camera.triggerShake(2);
+        this.dependencies.audio.play('crash');
+        this.dependencies.score.finalizeScore();
+        this.gameOver.emit(undefined);
+    }
+
+    public collect(points: number): void {
+        if (!this.isPlaying || this.speed === 0) return;
+        this.dependencies.score.addBonus(points);
+        this.dependencies.audio.play('coin', 1 + Math.min(12, this.dependencies.run.combo) / 24);
+    }
+
+    public fixedUpdate(delta: number): void {
+        const { state, player, score, collisions, chunks, input, entities, run, interactions } = this.dependencies;
+        if (state.currentState === GameState.Paused) return;
+        if (this.isPlaying && this.speed > 0) {
+            this.speed = run.speed;
+            const simulationDelta = delta * run.timeScale;
+            const amount = this.speed * simulationDelta;
+            player.fixedUpdate(simulationDelta, this.speed, true);
+            run.advance(delta, amount);
+            score.update(this.speed * run.multiplier, simulationDelta);
+            entities.update(simulationDelta);
+            interactions?.prepare(simulationDelta);
+            // Substeps keep thin hurdles and coins detectable at maximum speed.
+            const steps = Math.max(1, Math.ceil(amount / 0.45));
+            for (let step = 0; step < steps && this.isPlaying && this.speed > 0; step++) {
+                chunks.scroll(amount / steps);
+                entities.scroll(amount / steps);
+                collisions.checkCollisions();
+                if (this.isPlaying) interactions?.observe();
             }
-        );
-        
-        // Link Procedural Spawning to Chunk Recycling
-        this.chunkManager.onChunkRecycled = (chunkZ: number) => {
-            if (this.isPlaying) {
-                this.entityManager.spawnOnChunk(chunkZ);
-            }
-        };
-        
-        // Initial chunks are NOT pre-populated here. They are populated in reset() when "Play" is clicked.
-    }
-
-    private setupEnvironment(): void {
-        const skyColor = 0x202020;
-        this.scene.background = new THREE.Color(skyColor);
-        this.scene.fog = new THREE.Fog(skyColor, 100, 300);
-        // Initial setup only, CameraManager takes over
-    }
-
-    private setupLighting(): void {
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-        this.scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 5);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 4096;
-        directionalLight.shadow.mapSize.height = 4096;
-        directionalLight.shadow.camera.near = 0.5;
-        directionalLight.shadow.camera.far = 600;
-        
-        // Define shadow frustum large enough to cover the visible gameplay area
-        directionalLight.shadow.camera.left = -90;
-        directionalLight.shadow.camera.right = 90;
-        directionalLight.shadow.camera.top = 450;
-        directionalLight.shadow.camera.bottom = -150;
-        
-        this.scene.add(directionalLight);
-    }
-
-    public fixedUpdate(fixedDelta: number): void {
-        this.player.fixedUpdate(fixedDelta, this.globalSpeed);
-        
-        if (this.isPlaying) {
-            this.scoreTracker.update(this.globalSpeed, fixedDelta);
-            this.collisionManager.checkCollisions();
+            chunks.updatePooling(0);
+        } else {
+            player.fixedUpdate(delta, this.speed, false);
         }
-        
-        this.chunkManager.updatePooling(0.0);
-        this.inputManager.resetTriggers();
+        input.resetTriggers();
     }
 
-    public update(deltaTime: number): void {
-        // Difficulty Curve (Moved to update for smooth speed scaling)
-        if (this.isPlaying && this.globalSpeed > 0 && this.globalSpeed < this.maxSpeed) {
-            this.globalSpeed += 1.0 * deltaTime; 
-        }
-
-        // Render-specific smooth scrolling
-        const scrollAmount = this.globalSpeed * deltaTime;
-        this.chunkManager.scroll(scrollAmount);
-        this.entityManager.scroll(scrollAmount);
-
-        // Render-specific tracking and animations
-        this.cameraManager.update(deltaTime, this.globalSpeed);
-        this.entityManager.update(deltaTime);
+    public update(delta: number): void {
+        const { state, camera, player, run } = this.dependencies;
+        if (state.currentState === GameState.Paused) return;
+        camera.update(delta, this.speed);
+        player.update(delta * run.timeScale);
     }
-    
+
+    private readonly spawnInitial = (z: number, index: number): void => {
+        if (index >= (this.dependencies.initialEmptyChunks ?? 5)) this.dependencies.entities.spawnOnChunk(z);
+    };
+
     public reset(): void {
-        this.isPlaying = true;
-        this.globalSpeed = this.baseSpeed;
-        this.scoreTracker.reset();
-        this.chunkManager.reset();
-        this.entityManager.reset();
-        this.cameraManager.reset();
-        this.player.reset();
-        
-        // Repopulate initial chunks (skipping 5 chunks for a 5s start buffer)
-        for (let i = 5; i < 40; i++) {
-            this.entityManager.spawnOnChunk(-i * 30);
-        }
+        const { score, chunks, entities, camera, player } = this.dependencies;
+        this.speed = this.baseSpeed;
+        this.dependencies.run.reset();
+        score.reset();
+        chunks.reset();
+        entities.reset();
+        camera.reset();
+        player.reset();
+        chunks.forEachPosition(this.spawnInitial);
+    }
+
+    public dispose(): void {
+        for (const unsubscribe of this.subscriptions) unsubscribe();
+        this.gameOver.clear();
     }
 }

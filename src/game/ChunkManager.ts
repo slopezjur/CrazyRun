@@ -1,73 +1,63 @@
-import * as THREE from 'three/webgpu';
-import { Chunk } from './Chunk';
+import { Signal, type Unsubscribe } from '../core/Signal';
 
-export class ChunkManager {
-    private chunks: Chunk[] = [];
-    
-    private readonly chunkLength = 30;
-    private readonly poolSize = 40;
+export interface ITrackChunk {
+    readonly length: number;
+    readonly zPosition: number;
+    setZPosition(z: number): void;
+    shiftZ(amount: number): void;
+}
 
-    public onChunkRecycled?: (chunkZ: number) => void;
+export interface IChunkManager {
+    onChunkRecycled(listener: (z: number) => void): Unsubscribe;
+    forEachPosition(visitor: (z: number, index: number) => void): void;
+    updatePooling(referenceZ: number): void;
+    scroll(amount: number): void;
+    reset(): void;
+}
 
-    constructor(private scene: THREE.Scene) {
-        this.initializePool();
+export class ChunkManager implements IChunkManager {
+    private readonly chunks: ITrackChunk[];
+    private readonly recycled = new Signal<number>();
+
+    constructor(chunks: readonly ITrackChunk[]) {
+        if (chunks.length === 0 || chunks.some(chunk => !Number.isFinite(chunk.length)
+            || chunk.length <= 0 || chunk.length !== chunks[0].length)) {
+            throw new Error('Track chunks must have the same positive, finite length.');
+        }
+        this.chunks = [...chunks];
+        this.reset();
     }
 
-    private initializePool(): void {
-        const geometry = new THREE.BoxGeometry(6, 0.5, this.chunkLength);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x404040, roughness: 0.8 });
-        const lineGeo = new THREE.BoxGeometry(0.2, 0.05, 4);
-        const sideLineGeo = new THREE.BoxGeometry(0.2, 0.05, this.chunkLength);
-        const lineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, emissive: 0x222222 });
+    public onChunkRecycled(listener: (z: number) => void): Unsubscribe {
+        return this.recycled.subscribe(listener);
+    }
 
-        for (let i = 0; i < this.poolSize; i++) {
-            const chunk = new Chunk(geometry, groundMat, this.chunkLength, lineGeo, lineMat, sideLineGeo);
-            
-            const zPos = -i * this.chunkLength;
-            chunk.setZPosition(zPos);
-            
-            this.scene.add(chunk.mesh);
-            this.chunks.push(chunk);
-        }
+    public forEachPosition(visitor: (z: number, index: number) => void): void {
+        for (let i = 0; i < this.chunks.length; i++) visitor(this.chunks[i].zPosition, i);
     }
 
     public updatePooling(referenceZ: number): void {
-        const oldestChunk = this.chunks[0];
-        const safeDistanceBehindCamera = referenceZ + this.chunkLength;
-
-        if (oldestChunk.zPosition > safeDistanceBehindCamera) {
-            this.chunks.shift(); 
-            
-            const furthestChunk = this.chunks[this.chunks.length - 1];
-            const newZ = furthestChunk.zPosition - this.chunkLength;
-            
-            oldestChunk.setZPosition(newZ);
-            oldestChunk.reset();
-            
-            if (this.onChunkRecycled) {
-                this.onChunkRecycled(newZ);
-            }
-            
-            this.chunks.push(oldestChunk);
-        }
-    }
-
-    public shiftAll(amount: number): void {
-        for (const chunk of this.chunks) {
-            chunk.shiftZ(amount);
+        while (this.chunks[0].zPosition > referenceZ + this.chunks[0].length) {
+            const oldest = this.chunks.shift()!;
+            const furthest = this.chunks[this.chunks.length - 1];
+            const nextZ = furthest ? furthest.zPosition - oldest.length : oldest.zPosition - oldest.length;
+            oldest.setZPosition(nextZ);
+            this.chunks.push(oldest);
+            this.recycled.emit(nextZ);
         }
     }
 
     public scroll(amount: number): void {
-        // Move all chunks towards +Z (towards the player)
-        this.shiftAll(amount);
+        for (const chunk of this.chunks) chunk.shiftZ(amount);
     }
-    
+
     public reset(): void {
         for (let i = 0; i < this.chunks.length; i++) {
-            const zPos = -i * this.chunkLength;
-            this.chunks[i].setZPosition(zPos);
-            this.chunks[i].reset();
+            this.chunks[i].setZPosition(-i * this.chunks[i].length);
         }
+    }
+
+    public dispose(): void {
+        this.recycled.clear();
     }
 }

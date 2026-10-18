@@ -1,241 +1,120 @@
-import * as THREE from 'three/webgpu';
-import { InputManager, InputAction } from '../core/InputManager';
-import { IBoundingVolume } from './CollisionManager';
-import { MaterialFactory } from './graphics/MaterialFactory';
-import { AnimationController } from './graphics/AnimationController';
-import { ResourceManager } from '../core/ResourceManager';
+import { InputAction, type IInputReader } from '../core/InputManager';
+import { Signal, type Unsubscribe } from '../core/Signal';
+import type { IBoundingVolume } from './CollisionManager';
+import type { IPlayerPresentation, PlayerAnimation, PlayerPose } from './PlayerPresentation';
+import { Box3 } from 'three';
 
-export class Player implements IBoundingVolume {
-    public mesh: THREE.Group;
-    // Lane Configuration
-    private currentLane: number = 0; // -1 (Left), 0 (Center), 1 (Right)
-    private readonly laneWidth: number = 1.5;
-    private readonly laneLerpSpeed: number = 10.0;
-    
-    // Physics Configuration
-    private yVelocity: number = 0;
-    private readonly gravity: number = -30.0;
-    private readonly jumpImpulse: number = 12.0;
-    private isGrounded: boolean = true;
-    
-    // Slide mechanics
-    private isSliding: boolean = false;
-    private slideTimer: number = 0;
-    private readonly slideDuration: number = 1.0; // seconds
-    private readonly normalScaleY: number = 1.0;
-    private readonly slideScaleY: number = 0.5;
+export interface IPlayer {
+    fixedUpdate(delta: number, speed: number, acceptInput: boolean): void;
+    update(delta: number): void;
+    reset(): void;
+    onAction(listener: (action: 'jump' | 'slide') => void): Unsubscribe;
+}
 
-    // Anchor
-    private readonly startZ: number = 0.0;
-    
-    // Animation
-    private animController: AnimationController = new AnimationController();
-    private currentAnimState: string = 'Run';
-    
-    public boundingBox: THREE.Box3 = new THREE.Box3();
-    public onJump?: () => void;
-    public onSlide?: () => void;
+export interface IPlayerState extends IBoundingVolume {
+    readonly currentPose: Readonly<PlayerPose>;
+    readonly isSliding: boolean;
+}
 
-    public get z(): number {
-        return this.mesh.position.z;
+export class Player implements IPlayer, IPlayerState {
+    public readonly boundingBox = new Box3();
+    private currentLane = 0;
+    private yVelocity = 0;
+    private grounded = true;
+    private sliding = false;
+    private slideTimer = 0;
+    private readonly pose: PlayerPose = { x: 0, y: 1, z: 0, scaleY: 1, tiltX: 0 };
+    private readonly actions = new Signal<'jump' | 'slide'>();
+    private readonly laneWidth = 1.5;
+    private readonly gravity = -30;
+    private readonly jumpImpulse = 12;
+    private readonly slideDuration = 1;
+
+    constructor(
+        private readonly input: IInputReader,
+        private readonly presentation: IPlayerPresentation
+    ) {
+        this.reset();
     }
 
-    constructor(private scene: THREE.Scene, private inputManager: InputManager) {
-        this.mesh = new THREE.Group();
-        this.mesh.position.set(0, 1, this.startZ);
-        this.scene.add(this.mesh);
+    public get z(): number {
+        return this.pose.z;
+    }
 
-        // Fallback Player Representation
-        const fallbackGeometry = new THREE.CapsuleGeometry(0.5, 1, 4, 16);
-        const fallbackMat = MaterialFactory.createCurvedMaterial(0x00ff00);
-        const fallbackMesh = new THREE.Mesh(fallbackGeometry, fallbackMat);
-        fallbackMesh.castShadow = true;
-        fallbackMesh.receiveShadow = true;
-        this.mesh.add(fallbackMesh);
-        
-        this.syncBounds();
+    public get currentPose(): Readonly<PlayerPose> { return this.pose; }
+    public get isSliding(): boolean { return this.sliding; }
 
-        // Asynchronous Character Loading
-        ResourceManager.loadModel('/models/character.glb').then(gltf => {
-            if (gltf) {
-                    this.mesh.remove(fallbackMesh);
-                    const characterModel = gltf.scene;
-                    
-                    // Configure shadows and materials
-                    characterModel.traverse((child: any) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
-                            if (child.material) {
-                                child.material = MaterialFactory.upgradeToCurvedMaterial(child.material);
-                            }
-                        }
-                    });
-                    
-                    // Scale down Mixamo models (often export at 100x scale)
-                    characterModel.scale.set(0.01, 0.01, 0.01); 
-                    characterModel.position.y = -1; // Align origin to bottom
-                    
-                    this.mesh.add(characterModel);
-                    
-                    this.animController.initialize(characterModel);
-                    
-                    // Map animations by name (assuming Mixamo standard naming if merged)
-                    gltf.animations.forEach(clip => {
-                        // Use the clip name, but normalize it for our state machine
-                        let normalizedName = clip.name;
-                        if (normalizedName.toLowerCase().includes('run')) normalizedName = 'Run';
-                        if (normalizedName.toLowerCase().includes('jump')) normalizedName = 'Jump';
-                        if (normalizedName.toLowerCase().includes('slide')) normalizedName = 'Slide';
-                        if (normalizedName.toLowerCase().includes('die') || normalizedName.toLowerCase().includes('fall')) normalizedName = 'Die';
-                        
-                        this.animController.registerAction(normalizedName, clip);
-                    });
-                    
-                    this.animController.fadeToAction('Run', 0.0);
-                }
-            });
+    private syncBounds(): void {
+        // The gameplay collider is independent of character assets and rendered animation frames.
+        this.boundingBox.min.set(this.pose.x - 0.4, this.pose.y - this.pose.scaleY, -0.4);
+        this.boundingBox.max.set(this.pose.x + 0.4, this.pose.y + this.pose.scaleY, 0.4);
+    }
+
+    public onAction(listener: (action: 'jump' | 'slide') => void): Unsubscribe {
+        return this.actions.subscribe(listener);
     }
 
     public reset(): void {
         this.currentLane = 0;
         this.yVelocity = 0;
-        this.isGrounded = true;
-        this.isSliding = false;
+        this.grounded = true;
+        this.sliding = false;
         this.slideTimer = 0;
-        this.mesh.position.set(0, 1, this.startZ);
-        this.mesh.scale.set(1, 1, 1);
-        this.mesh.rotation.set(0, 0, 0);
-        this.currentAnimState = 'Run';
-        this.animController.fadeToAction('Run', 0.0);
+        Object.assign(this.pose, { x: 0, y: 1, z: 0, scaleY: 1, tiltX: 0 });
+        this.presentation.setPose(this.pose);
         this.syncBounds();
+        this.presentation.setAnimation('Run', 30);
     }
 
-    public fixedUpdate(fixedDelta: number, globalSpeed: number): void {
-        if (globalSpeed === 0) {
-            // Player is crashed: freeze physics and cooldowns to maintain crash pose
-            this.syncBounds();
-            this.updateAnimationState(globalSpeed);
-            return;
-        }
-
-        this.handleInput();
-        this.applyLaneMovement(fixedDelta);
-        this.applySlideInterpolation(fixedDelta);
-        this.applyPhysics(fixedDelta);
-        this.handleSlideCooldown(fixedDelta);
-        this.syncBounds();
-        this.updateAnimationState(globalSpeed);
-    }
-
-    private updateAnimationState(globalSpeed: number): void {
-        let newState = 'Run';
-        
-        if (globalSpeed === 0) {
-            newState = 'Die';
-        } else if (this.isSliding) {
-            newState = 'Slide';
-        } else if (!this.isGrounded) {
-            newState = 'Jump';
-        }
-        
-        if (newState !== this.currentAnimState) {
-            this.animController.fadeToAction(newState, 0.2);
-            this.currentAnimState = newState;
-        } else if (newState === 'Run') {
-            const runAction = this.animController.getAction('Run');
-            if (runAction) {
-                // Assuming base speed 30 units/sec matches animation timescale 1.0
-                runAction.setEffectiveTimeScale(Math.max(1.0, globalSpeed / 30.0));
+    public fixedUpdate(delta: number, speed: number, acceptInput: boolean): void {
+        if (speed !== 0) {
+            if (acceptInput) this.handleInput();
+            this.pose.x += (this.currentLane * this.laneWidth - this.pose.x) * 10 * delta;
+            this.pose.scaleY += ((this.sliding ? 0.5 : 1) - this.pose.scaleY) * 16 * delta;
+            this.pose.tiltX += ((this.sliding ? -0.4 : 0) - this.pose.tiltX) * 16 * delta;
+            this.yVelocity += this.gravity * delta;
+            this.pose.y += this.yVelocity * delta;
+            if (this.pose.y <= this.pose.scaleY) {
+                this.pose.y = this.pose.scaleY;
+                this.yVelocity = 0;
+                this.grounded = true;
+            } else {
+                this.grounded = false;
+            }
+            if (this.sliding) {
+                if (this.input.isActionActive(InputAction.Slide)) this.slideTimer = this.slideDuration;
+                else this.slideTimer -= delta;
+                if (this.slideTimer <= 0) this.sliding = false;
             }
         }
-    }
-
-    public update(deltaTime: number): void {
-        this.animController.update(deltaTime);
-    }
-
-    private syncBounds(): void {
-        this.boundingBox.setFromObject(this.mesh);
+        this.presentation.setPose(this.pose);
+        this.syncBounds();
+        const animation: PlayerAnimation = speed === 0 ? 'Die'
+            : this.sliding ? 'Slide' : !this.grounded ? 'Jump' : 'Run';
+        this.presentation.setAnimation(animation, speed);
     }
 
     private handleInput(): void {
-        if (this.inputManager.isActionTriggered(InputAction.Left) && this.currentLane > -1) {
-            this.currentLane--;
-        }
-        
-        if (this.inputManager.isActionTriggered(InputAction.Right) && this.currentLane < 1) {
-            this.currentLane++;
-        }
-
-        if (this.inputManager.isActionTriggered(InputAction.Jump) && this.isGrounded) {
+        if (this.input.isActionTriggered(InputAction.Left) && this.currentLane > -1) this.currentLane--;
+        if (this.input.isActionTriggered(InputAction.Right) && this.currentLane < 1) this.currentLane++;
+        if (this.input.isActionTriggered(InputAction.Jump) && this.grounded) {
             this.yVelocity = this.jumpImpulse;
-            this.isGrounded = false;
-            // Interrupt slide if jumping
-            this.endSlide();
-            if (this.onJump) this.onJump();
+            this.grounded = false;
+            this.sliding = false;
+            this.actions.emit('jump');
         }
-
-        if (this.inputManager.isActionTriggered(InputAction.Slide) && this.isGrounded) {
-            const wasSliding = this.isSliding;
-            this.startSlide();
-            if (!wasSliding && this.onSlide) this.onSlide();
+        if (this.input.isActionTriggered(InputAction.Slide) && this.grounded) {
+            if (!this.sliding) this.actions.emit('slide');
+            this.sliding = true;
+            this.slideTimer = this.slideDuration;
         }
     }
 
-    private applyLaneMovement(fixedDelta: number): void {
-        const targetX = this.currentLane * this.laneWidth;
-        // Smooth Interpolation (Lerp)
-        this.mesh.position.x += (targetX - this.mesh.position.x) * this.laneLerpSpeed * fixedDelta;
+    public update(delta: number): void {
+        this.presentation.update(delta);
     }
 
-    private applySlideInterpolation(fixedDelta: number): void {
-        const targetScaleY = this.isSliding ? this.slideScaleY : this.normalScaleY;
-        const targetRotationX = this.isSliding ? -0.4 : 0.0;
-        const slideTransitionSpeed = 16.0;
-
-        this.mesh.scale.y += (targetScaleY - this.mesh.scale.y) * slideTransitionSpeed * fixedDelta;
-        this.mesh.rotation.x += (targetRotationX - this.mesh.rotation.x) * slideTransitionSpeed * fixedDelta;
-    }
-
-    private applyPhysics(fixedDelta: number): void {
-        // Apply Gravity
-        this.yVelocity += this.gravity * fixedDelta;
-        this.mesh.position.y += this.yVelocity * fixedDelta;
-
-        // Dynamic Ground Detection based on continuous scale
-        const floorY = this.mesh.scale.y; // Center Y equals scale.y to keep bottom at Y=0
-
-        if (this.mesh.position.y <= floorY) {
-            this.mesh.position.y = floorY;
-            this.yVelocity = 0;
-            this.isGrounded = true;
-        } else {
-            this.isGrounded = false;
-        }
-    }
-
-    private startSlide(): void {
-        this.isSliding = true;
-        this.slideTimer = this.slideDuration;
-    }
-
-    private endSlide(): void {
-        if (!this.isSliding) return;
-        this.isSliding = false;
-    }
-
-    private handleSlideCooldown(fixedDelta: number): void {
-        if (this.isSliding) {
-            if (this.inputManager.isActionActive(InputAction.Slide)) {
-                // Keep slide active indefinitely while key/touch is held down
-                this.slideTimer = this.slideDuration;
-            } else {
-                this.slideTimer -= fixedDelta;
-                if (this.slideTimer <= 0) {
-                    this.endSlide();
-                }
-            }
-        }
+    public dispose(): void {
+        this.actions.clear();
     }
 }

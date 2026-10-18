@@ -1,3 +1,5 @@
+import { Signal, type Unsubscribe } from './Signal';
+
 export enum GameState {
     MainMenu,
     Playing,
@@ -5,34 +7,37 @@ export enum GameState {
     GameOver
 }
 
-export class GameStateManager {
-    public currentState: GameState = GameState.MainMenu;
-    public logicalUpdatesPerSecond: number = 0;
-    private debugElement: HTMLElement | null;
+export interface IGameStateReader {
+    readonly currentState: GameState;
+}
 
-    private listeners: ((state: GameState) => void)[] = [];
+export interface IGameStateSource extends IGameStateReader {
+    onStateChange(listener: (state: GameState) => void): Unsubscribe;
+}
 
-    constructor() {
-        this.debugElement = document.getElementById('debug-overlay');
-        this.updateDebugUI();
+export interface IGameStateController extends IGameStateReader {
+    changeState(state: GameState): void;
+}
+
+export class GameStateManager implements IGameStateController, IGameStateSource {
+    private state = GameState.MainMenu;
+    private readonly changed = new Signal<GameState>();
+
+    public get currentState(): GameState {
+        return this.state;
     }
 
-    public onStateChange(listener: (state: GameState) => void): void {
-        this.listeners.push(listener);
+    public onStateChange(listener: (state: GameState) => void): Unsubscribe {
+        return this.changed.subscribe(listener);
     }
 
-    public changeState(newState: GameState): void {
-        if (this.currentState === newState) return;
-        this.currentState = newState;
-        this.updateDebugUI();
-        for (const listener of this.listeners) {
-            listener(this.currentState);
-        }
+    public changeState(state: GameState): void {
+        if (this.state === state) return;
+        this.state = state;
+        this.changed.emit(state);
     }
 
-    public updateDebugUI(): void {
-        if (this.debugElement) {
-            this.debugElement.innerHTML = `State: ${GameState[this.currentState]}<br>UPS: ${this.logicalUpdatesPerSecond}`;
-        }
+    public dispose(): void {
+        this.changed.clear();
     }
 }

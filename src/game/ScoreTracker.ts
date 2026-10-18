@@ -1,14 +1,26 @@
-import { IScoreStorage } from '../core/StorageService';
+import type { IValueStorage } from '../core/StorageService';
+import { Signal, type Unsubscribe } from '../core/Signal';
 
-export class ScoreTracker {
-    private currentScore: number = 0;
-    private highScore: number = 0;
-    
-    // Decoupled DOM updates via event callback
-    public onScoreUpdated?: (score: number) => void;
+export interface IScoreSource {
+    readonly score: number;
+    readonly highestScore: number;
+}
 
-    constructor(private storage: IScoreStorage) {
-        this.highScore = this.storage.loadHighScore();
+export interface IScoreTracker {
+    reset(): void;
+    addBonus(points: number): void;
+    update(speed: number, delta: number): void;
+    finalizeScore(): void;
+}
+
+export class ScoreTracker implements IScoreTracker, IScoreSource {
+    private currentScore = 0;
+    private highScore: number;
+    private readonly changed = new Signal<number>();
+
+    constructor(private readonly storage: IValueStorage<number>) {
+        const saved = storage.load();
+        this.highScore = Number.isSafeInteger(saved) && saved >= 0 ? saved : 0;
     }
 
     public get score(): number {
@@ -19,31 +31,33 @@ export class ScoreTracker {
         return this.highScore;
     }
 
+    public onScoreUpdated(listener: (score: number) => void): Unsubscribe {
+        return this.changed.subscribe(listener);
+    }
+
     public reset(): void {
         this.currentScore = 0;
-        this.notify();
+        this.changed.emit(this.score);
     }
 
     public addBonus(points: number): void {
         this.currentScore += points;
-        this.notify();
+        this.changed.emit(this.score);
     }
 
-    public update(speed: number, deltaTime: number): void {
-        this.currentScore += speed * deltaTime;
-        this.notify();
+    public update(speed: number, delta: number): void {
+        this.currentScore += speed * delta;
+        this.changed.emit(this.score);
     }
 
     public finalizeScore(): void {
-        if (this.currentScore > this.highScore) {
-            this.highScore = Math.floor(this.currentScore);
-            this.storage.saveHighScore(this.highScore);
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            this.storage.save(this.highScore);
         }
     }
 
-    private notify(): void {
-        if (this.onScoreUpdated) {
-            this.onScoreUpdated(this.score);
-        }
+    public dispose(): void {
+        this.changed.clear();
     }
 }

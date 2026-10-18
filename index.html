@@ -24,7 +24,33 @@
           </div>
           <h1>CRAZY RUN</h1>
           <p class="subtitle" data-i18n="subtitle">An Endless WebGPU Experience</p>
-          <button id="btn-play" class="primary-btn" data-i18n="btnPlay">PLAY NOW</button>
+          <div class="mode-grid">
+            <div class="mode-card">
+              <span class="eyebrow" data-i18n="freeRun">Free run</span>
+              <p data-i18n="startHint">Swipe or use arrows. Follow the coins; jump orange hurdles and slide under pink arches.</p>
+              <button id="btn-play" class="primary-btn" data-i18n="btnPlay">PLAY NOW</button>
+            </div>
+            <div class="mode-card daily-card">
+              <span class="eyebrow" data-i18n="dailyRun">Daily challenge</span>
+              <strong id="daily-description"></strong>
+              <p data-i18n="dailyHint">Same course for everyone. A new challenge every day at 00:00 UTC.</p>
+              <span id="daily-best"></span>
+              <button id="btn-daily" class="primary-btn" data-i18n="dailyRun">Daily challenge</button>
+              <button id="btn-share-daily" class="text-btn" data-i18n="share">Share challenge</button>
+            </div>
+          </div>
+          <div class="wallet"><span data-i18n="wallet">Wallet</span><strong id="wallet-value">0</strong><span data-i18n="coins">coins</span></div>
+          <p class="menu-hint" data-i18n="riskHint">Short chains mark the safe route. Longer chains reward clean jumps and slides.</p>
+          <div class="menu-details">
+            <details><summary data-i18n="missions">Missions</summary><ul id="mission-list"></ul></details>
+            <details><summary data-i18n="locker">Locker</summary><div id="wardrobe"></div></details>
+            <details>
+              <summary data-i18n="settings">Settings</summary>
+              <label class="setting-row"><span data-i18n="motion">Motion &amp; effects</span><input id="motion-setting" type="range" min="0" max="100" step="5"></label>
+              <label class="setting-row"><span data-i18n="ghostSetting">Show personal best ghost</span><input id="ghost-setting" type="checkbox" checked></label>
+              <p class="menu-hint" data-i18n="ghostHint">Ghosts appear on a repeated course. Try again to race your best run.</p>
+            </details>
+          </div>
         </div>
 
         <!-- HUD -->
@@ -33,6 +59,17 @@
             <span class="score-label" data-i18n="score">SCORE</span>
             <span id="score-display">0</span>
           </div>
+          <button id="btn-pause" class="secondary-btn pause-btn" data-i18n="pause">Pause</button>
+          <div class="run-info">
+            <span id="run-mode"></span><strong id="run-biome"></strong>
+            <div class="run-metrics"><span id="run-distance">0 m</span><span id="run-coins">0 coins</span></div>
+            <strong id="run-combo">Combo 0 · ×1</strong>
+            <label for="crazy-meter" id="crazy-label">CRAZY CHARGE</label>
+            <progress id="crazy-meter" max="100" value="0"></progress>
+            <span id="run-powers"></span><span id="ghost-delta"></span>
+          </div>
+          <div id="run-notice" role="status" aria-live="polite" hidden></div>
+          <div id="run-mission"></div>
 
           <!-- Desktop Key Hints -->
           <div id="controls-hud-desktop">
@@ -67,6 +104,7 @@
         <div id="panel-paused" class="ui-panel hidden glass">
           <h2 data-i18n="paused">PAUSED</h2>
           <button id="btn-resume" class="primary-btn" data-i18n="btnResume">RESUME</button>
+          <button id="btn-quit" class="text-btn" data-i18n="quitRun">Abandon run</button>
         </div>
 
         <!-- Game Over -->
@@ -77,10 +115,29 @@
             <span id="final-score-display">0</span>
           </div>
           <div class="high-score-box">
-            <span class="score-label" data-i18n="highScore">HIGH SCORE</span>
+            <span class="score-label" data-i18n="totalBest">All-time score</span>
             <span id="high-score-display">0</span>
           </div>
+          <dl class="result-grid" aria-label="Run results" data-i18n-aria="results">
+            <div><dt data-i18n="distance">Distance</dt><dd id="result-distance">0 m</dd></div>
+            <div><dt data-i18n="coins">Coins</dt><dd id="result-coins">0</dd></div>
+            <div><dt data-i18n="longestCombo">Best combo</dt><dd id="result-combo">0</dd></div>
+            <div><dt data-i18n="nearMisses">Near misses</dt><dd id="result-near">0</dd></div>
+            <div><dt data-i18n="chains">Coin chains</dt><dd id="result-chains">0</dd></div>
+            <div><dt data-i18n="crazyModes">Crazy modes</dt><dd id="result-crazy">0</dd></div>
+          </dl>
+          <strong id="result-earned"></strong><p id="result-missions"></p><p id="result-best"></p>
           <button id="btn-restart" class="primary-btn" data-i18n="btnRestart">TRY AGAIN</button>
+          <div class="result-actions">
+            <button id="btn-menu" class="secondary-btn" data-i18n="home">Main menu</button>
+            <button id="btn-share-run" class="secondary-btn" data-i18n="share" hidden>Share challenge</button>
+          </div>
+        </div>
+
+        <div id="share-box" class="share-box glass" hidden>
+          <label for="share-url" data-i18n="shareHint">Challenge link — copy and send it to a friend.</label>
+          <input id="share-url" type="text" readonly spellcheck="false">
+          <button id="btn-close-share" class="secondary-btn" data-i18n="close">Close</button>
         </div>
 
       </div>

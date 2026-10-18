@@ -1,6 +1,8 @@
-export type Language = 'en' | 'es';
+import type { IValueStorage } from './StorageService';
+import { Signal, type Unsubscribe } from './Signal';
 
 export interface Translations {
+    readonly [key: string]: string;
     subtitle: string;
     btnPlay: string;
     score: string;
@@ -15,81 +17,64 @@ export interface Translations {
     slide: string;
 }
 
-export const DICTIONARY: Record<Language, Translations> = {
-    en: {
-        subtitle: 'An Endless WebGPU Experience',
-        btnPlay: 'PLAY NOW',
-        score: 'SCORE',
-        paused: 'PAUSED',
-        btnResume: 'RESUME',
-        crashed: 'CRASHED!',
-        finalScore: 'FINAL SCORE',
-        highScore: 'HIGH SCORE',
-        btnRestart: 'TRY AGAIN',
-        lane: 'Lane',
-        jump: 'Jump',
-        slide: 'Slide'
-    },
-    es: {
-        subtitle: 'Una experiencia WebGPU infinita',
-        btnPlay: 'JUGAR AHORA',
-        score: 'PUNTOS',
-        paused: 'PAUSADO',
-        btnResume: 'CONTINUAR',
-        crashed: '¡CHOCASTE!',
-        finalScore: 'PUNTUACIÓN FINAL',
-        highScore: 'RÉCORD',
-        btnRestart: 'REINTENTAR',
-        lane: 'Carril',
-        jump: 'Saltar',
-        slide: 'Deslizar'
-    }
-};
+export interface Locale {
+    readonly id: string;
+    readonly label: string;
+    readonly translations: Readonly<Translations>;
+}
 
-export class I18nService {
-    private currentLang: Language = 'en';
-    private listeners: ((lang: Language, t: Translations) => void)[] = [];
-    private readonly STORAGE_KEY = 'crazyrun_lang';
+export interface ILocalizationSource {
+    readonly locale: Locale;
+    onChange(listener: (locale: Locale) => void): Unsubscribe;
+}
 
-    constructor() {
-        const saved = localStorage.getItem(this.STORAGE_KEY) as Language | null;
-        if (saved && (saved === 'en' || saved === 'es')) {
-            this.currentLang = saved;
-        } else {
-            const browserLang = navigator.language.slice(0, 2).toLowerCase();
-            this.currentLang = browserLang === 'es' ? 'es' : 'en';
+export interface ILocalization extends ILocalizationSource { cycleLanguage(): void; }
+
+export class I18nService implements ILocalization {
+    private current: Locale;
+    private readonly changed = new Signal<Locale>();
+
+    constructor(
+        private readonly storage: IValueStorage<string | null>,
+        browserLanguage: string,
+        private readonly locales: readonly Locale[]
+    ) {
+        if (locales.length === 0 || new Set(locales.map(locale => locale.id)).size !== locales.length) {
+            throw new Error('Locales must have unique IDs and include at least one entry.');
         }
+        const saved = storage.load();
+        const language = browserLanguage.toLowerCase();
+        this.current = locales.find(locale => locale.id === saved)
+            ?? locales.find(locale => locale.id.toLowerCase() === language)
+            ?? locales.find(locale => locale.id.toLowerCase() === language.split('-')[0])
+            ?? locales[0];
     }
 
-    public get language(): Language {
-        return this.currentLang;
+    public get locale(): Locale {
+        return this.current;
     }
 
-    public get t(): Translations {
-        return DICTIONARY[this.currentLang];
+    public cycleLanguage(): void {
+        const index = this.locales.indexOf(this.current);
+        this.setLanguage(this.locales[(index + 1) % this.locales.length].id);
     }
 
-    public cycleLanguage(): Language {
-        const languages: Language[] = ['en', 'es'];
-        const nextIndex = (languages.indexOf(this.currentLang) + 1) % languages.length;
-        this.setLanguage(languages[nextIndex]);
-        return this.currentLang;
+    public setLanguage(id: string): void {
+        const locale = this.locales.find(entry => entry.id === id);
+        if (!locale) throw new RangeError('Unknown locale: ' + id);
+        if (locale === this.current) return;
+        this.current = locale;
+        this.storage.save(id);
+        this.changed.emit(locale);
     }
 
-    public setLanguage(lang: Language): void {
-        this.currentLang = lang;
-        localStorage.setItem(this.STORAGE_KEY, lang);
-        this.notifyListeners();
+    public onChange(listener: (locale: Locale) => void): Unsubscribe {
+        const unsubscribe = this.changed.subscribe(listener);
+        listener(this.current);
+        return unsubscribe;
     }
 
-    public onChange(callback: (lang: Language, t: Translations) => void): void {
-        this.listeners.push(callback);
-        callback(this.currentLang, this.t);
-    }
-
-    private notifyListeners(): void {
-        for (const cb of this.listeners) {
-            cb(this.currentLang, this.t);
-        }
+    public dispose(): void {
+        this.changed.clear();
     }
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 
 export class CameraManager {
+    public motionIntensity = 0.65;
     // Positioning
     private readonly zOffset: number = 8.0;
     private readonly yOffset: number = 3.0;
@@ -53,8 +54,8 @@ export class CameraManager {
         if (this.shakeIntensity > 0) {
             const offsetX = (Math.random() - 0.5) * this.shakeIntensity;
             const offsetY = (Math.random() - 0.5) * this.shakeIntensity;
-            this.camera.position.x += offsetX;
-            this.camera.position.y += offsetY;
+            this.camera.position.x += offsetX * this.motionIntensity;
+            this.camera.position.y += offsetY * this.motionIntensity;
             
             this.shakeIntensity -= this.shakeDecay * deltaTime;
             if (this.shakeIntensity < 0) this.shakeIntensity = 0;
@@ -86,7 +87,7 @@ export class CameraManager {
         // Assuming a standard max speed around 100 for normalization
         const normalizedSpeed = Math.max(0, Math.min(globalSpeed / 100, 1.0));
         
-        const targetFov = this.baseFov + (this.maxFov - this.baseFov) * normalizedSpeed;
+        const targetFov = this.baseFov + (this.maxFov - this.baseFov) * normalizedSpeed * this.motionIntensity;
         
         // Lerp FOV smoothly
         const previousFov = this.currentFov;

@@ -1,50 +1,38 @@
-import * as THREE from 'three/webgpu';
+import type { Box3 } from 'three';
 
 export interface IBoundingVolume {
-    boundingBox: THREE.Box3;
-    z: number;
+    readonly boundingBox: Box3;
+    readonly z: number;
 }
 
+export type CollisionResponse = 'continue' | 'stop';
+
 export interface ICollisionTarget extends IBoundingVolume {
-    isSolid: boolean;
-    onCollide(): void;
+    readonly isActive: boolean;
+    onCollide(): CollisionResponse;
+}
+
+export interface ICollisionSource {
+    forEachActive(visitor: (target: ICollisionTarget) => boolean): void;
 }
 
 export class CollisionManager {
-    // Narrow Z-gate: Only check entities extremely close to the player on Z
-    private readonly zGate: number = 2.0;
-
     constructor(
-        private subject: IBoundingVolume, 
-        private getTargets: () => ICollisionTarget[],
-        public onCrash?: () => void,
-        public onCoinCollected?: (coin: any) => void
+        private readonly subject: IBoundingVolume,
+        private readonly targets: ICollisionSource,
+        private readonly zGate = 2
     ) {}
 
+    private readonly checkTarget = (target: ICollisionTarget): boolean => {
+        if (!target.isActive) return true;
+        if (Math.abs(target.z - this.subject.z) > this.zGate
+            && (target.boundingBox.min.z > this.subject.boundingBox.max.z
+                || target.boundingBox.max.z < this.subject.boundingBox.min.z)) return true;
+        if (!this.subject.boundingBox.intersectsBox(target.boundingBox)) return true;
+        return target.onCollide() !== 'stop';
+    };
+
     public checkCollisions(): void {
-        const subjectZ = this.subject.z;
-        const subjectBox = this.subject.boundingBox;
-
-        // Iterate over all active target entities provided by the getter
-        for (const target of this.getTargets()) {
-            
-            // 1. Broad Phase: Z-Gated Proximity Check
-            if (Math.abs(target.z - subjectZ) > this.zGate) {
-                continue; // Skip entities outside the Z-gate
-            }
-
-            // 2. Narrow Phase: Precise AABB Intersection
-            if (subjectBox.intersectsBox(target.boundingBox)) {
-                
-                // 3. Resolution Delegation
-                target.onCollide();
-                
-                if (target.isSolid) {
-                    if (this.onCrash) this.onCrash();
-                } else {
-                    if (this.onCoinCollected) this.onCoinCollected(target);
-                }
-            }
-        }
+        this.targets.forEachActive(this.checkTarget);
     }
 }

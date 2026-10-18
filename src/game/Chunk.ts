@@ -1,61 +1,42 @@
 import * as THREE from 'three/webgpu';
-import { MaterialFactory } from './graphics/MaterialFactory';
 
 export class Chunk {
-    public mesh: THREE.Mesh;
-    public isActive: boolean = true;
-    public zPosition: number = 0;
+    public readonly mesh: THREE.Mesh;
+    private z = 0;
 
     constructor(
         geometry: THREE.BufferGeometry,
         material: THREE.Material,
         public readonly length: number,
-        lineGeometry?: THREE.BufferGeometry,
-        lineMaterial?: THREE.Material,
-        sideLineGeometry?: THREE.BufferGeometry
+        lineGeometry: THREE.BufferGeometry,
+        lineMaterial: THREE.Material,
+        sideLineGeometry: THREE.BufferGeometry
     ) {
-        const nodeMat = MaterialFactory.upgradeToCurvedMaterial(material);
-
-        this.mesh = new THREE.Mesh(geometry, nodeMat);
+        this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.receiveShadow = true;
-        this.mesh.position.y = -0.25; // Top surface at y=0 if thickness is 0.5
-
-        if (lineGeometry && lineMaterial) {
-            const lineNodeMat = MaterialFactory.upgradeToCurvedMaterial(lineMaterial);
-            
-            // Middle dashed line (separates the two channels)
-            const lineOffsets = [-10, 0, 10];
-            for (const zOffset of lineOffsets) {
-                const middleLine = new THREE.Mesh(lineGeometry, lineNodeMat);
-                middleLine.position.set(0, 0.26, zOffset);
-                this.mesh.add(middleLine);
-            }
-            
-            // Continuous side lines
-            if (sideLineGeometry) {
-                const leftSideLine = new THREE.Mesh(sideLineGeometry, lineNodeMat);
-                leftSideLine.position.set(-2.9, 0.26, 0);
-                this.mesh.add(leftSideLine);
-                
-                const rightSideLine = new THREE.Mesh(sideLineGeometry, lineNodeMat);
-                rightSideLine.position.set(2.9, 0.26, 0);
-                this.mesh.add(rightSideLine);
-            }
+        this.mesh.position.y = -0.25;
+        for (let offset = -length / 2 + 5; offset < length / 2; offset += 10) {
+            const line = new THREE.Mesh(lineGeometry, lineMaterial);
+            line.position.set(0, 0.26, offset);
+            this.mesh.add(line);
+        }
+        for (const x of [-2.9, 2.9]) {
+            const line = new THREE.Mesh(sideLineGeometry, lineMaterial);
+            line.position.set(x, 0.26, 0);
+            this.mesh.add(line);
         }
     }
 
+    public get zPosition(): number {
+        return this.z;
+    }
+
     public setZPosition(z: number): void {
-        this.zPosition = z;
+        this.z = z;
         this.mesh.position.z = z;
     }
 
     public shiftZ(amount: number): void {
-        this.zPosition += amount;
-        this.mesh.position.z = this.zPosition;
-    }
-
-    public reset(): void {
-        this.isActive = true;
-        // Future: Reset obstacles/coins associated with this chunk
+        this.setZPosition(this.z + amount);
     }
 }

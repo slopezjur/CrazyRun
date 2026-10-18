@@ -1,26 +1,26 @@
-import * as THREE from 'three/webgpu';
-import { Entity } from './Entity';
+export interface IEntityPool<T> {
+    getInactive(): T | null;
+    getAll(): readonly T[];
+}
 
-export class EntityPool<T extends Entity> {
-    private pool: T[] = [];
+export class EntityPool<T extends { readonly isActive: boolean }> implements IEntityPool<T> {
+    private readonly entities: T[] = [];
 
-    constructor(
-        private scene: THREE.Scene, 
-        private size: number, 
-        private factory: () => T
-    ) {
-        for (let i = 0; i < this.size; i++) {
-            const entity = this.factory();
-            this.scene.add(entity.mesh);
-            this.pool.push(entity);
+    constructor(size: number, factory: () => T) {
+        if (!Number.isSafeInteger(size) || size < 0) {
+            throw new RangeError('Pool size must be a non-negative integer.');
         }
+        for (let i = 0; i < size; i++) this.entities.push(factory());
     }
 
     public getInactive(): T | null {
-        return this.pool.find(e => !e.isActive) || null;
+        for (const entity of this.entities) {
+            if (!entity.isActive) return entity;
+        }
+        return null;
     }
 
-    public getAll(): T[] {
-        return this.pool;
+    public getAll(): readonly T[] {
+        return this.entities;
     }
 }

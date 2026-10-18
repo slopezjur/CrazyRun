@@ -3,6 +3,9 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
   base: '/CrazyRun/',
+  resolve: {
+    alias: [{ find: /^three$/, replacement: 'three/webgpu' }]
+  },
   plugins: [
     topLevelAwait({
       promiseExportName: '__tla',

@@ -1,153 +1,111 @@
-import * as THREE from 'three/webgpu';
+import type { IValueStorage } from '../core/StorageService';
 
-export class AudioManager {
-    private listener: THREE.AudioListener;
-    private ctx: AudioContext;
-    private masterGain: GainNode;
-    private _isMuted: boolean = false;
-    private readonly STORAGE_KEY = 'crazyrun_muted';
+export interface SoundDefinition {
+    readonly waveform: OscillatorType;
+    readonly startFrequency: number;
+    readonly endFrequency: number;
+    readonly frequencyEnd: number;
+    readonly frequencyMode: 'step' | 'exponential';
+    readonly volume: number;
+    readonly fadeStart: number;
+    readonly fadeEnd: number;
+    readonly duration: number;
+}
 
-    constructor(private camera: THREE.Camera) {
-        this.listener = new THREE.AudioListener();
-        this.camera.add(this.listener);
-        this.ctx = this.listener.context;
+export interface ISoundPlayer {
+    play(id: string, pitch?: number): void;
+}
 
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.connect(this.ctx.destination);
+export interface IAudioControl {
+    readonly isMuted: boolean;
+    toggleMute(): boolean;
+}
 
-        const savedMute = localStorage.getItem(this.STORAGE_KEY);
-        if (savedMute === 'true') {
-            this.setMuted(true);
-        }
+interface Voice {
+    readonly oscillator: OscillatorNode;
+    readonly gain: GainNode;
+}
+
+export class AudioManager implements ISoundPlayer, IAudioControl {
+    private readonly masterGain: GainNode;
+    private readonly voices = new Set<Voice>();
+    private muted: boolean;
+    private disposed = false;
+
+    constructor(
+        private readonly context: AudioContext,
+        private readonly preference: IValueStorage<boolean>,
+        private readonly sounds: ReadonlyMap<string, SoundDefinition>
+    ) {
+        this.masterGain = context.createGain();
+        this.masterGain.connect(context.destination);
+        this.muted = preference.load();
+        this.applyVolume();
     }
 
     public get isMuted(): boolean {
-        return this._isMuted;
-    }
-
-    public setMuted(muted: boolean): void {
-        this._isMuted = muted;
-        localStorage.setItem(this.STORAGE_KEY, muted.toString());
-        this.masterGain.gain.setValueAtTime(muted ? 0 : 1, this.ctx.currentTime);
+        return this.muted;
     }
 
     public toggleMute(): boolean {
-        this.setMuted(!this._isMuted);
-        return this._isMuted;
+        this.muted = !this.muted;
+        this.preference.save(this.muted);
+        this.applyVolume();
+        return this.muted;
     }
 
-    private resumeContext(): void {
-        if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume().catch(() => {});
+    private applyVolume(): void {
+        this.masterGain.gain.setValueAtTime(this.muted ? 0 : 1, this.context.currentTime);
+    }
+
+    public unlock(): void {
+        if (!this.disposed && this.context.state === 'suspended') {
+            void this.context.resume().catch(() => {});
         }
     }
 
-    /**
-     * Classic 2-tone arcade coin pickup chime (B5 -> E6)
-     */
-    public playCoinSound(): void {
-        if (this._isMuted) return;
-        this.resumeContext();
-        const now = this.ctx.currentTime;
-
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(987.77, now);
-        osc.frequency.setValueAtTime(1318.51, now + 0.08);
-
-        gain.gain.setValueAtTime(0.35, now);
-        gain.gain.setValueAtTime(0.35, now + 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-        osc.connect(gain);
+    public play(id: string, pitch = 1): void {
+        if (this.disposed || this.muted) return;
+        const sound = this.sounds.get(id);
+        if (!sound) throw new Error('Unknown sound: ' + id);
+        this.unlock();
+        const now = this.context.currentTime;
+        const oscillator = this.context.createOscillator();
+        const gain = this.context.createGain();
+        oscillator.type = sound.waveform;
+        const rate = Number.isFinite(pitch) ? Math.max(0.25, Math.min(4, pitch)) : 1;
+        oscillator.frequency.setValueAtTime(sound.startFrequency * rate, now);
+        if (sound.frequencyMode === 'step') {
+            oscillator.frequency.setValueAtTime(sound.endFrequency * rate, now + sound.frequencyEnd);
+        } else {
+            oscillator.frequency.exponentialRampToValueAtTime(sound.endFrequency * rate, now + sound.frequencyEnd);
+        }
+        gain.gain.setValueAtTime(sound.volume, now);
+        gain.gain.setValueAtTime(sound.volume, now + sound.fadeStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + sound.fadeEnd);
+        oscillator.connect(gain);
         gain.connect(this.masterGain);
-
-        osc.start(now);
-        osc.stop(now + 0.36);
+        const voice: Voice = { oscillator, gain };
+        this.voices.add(voice);
+        oscillator.onended = () => {
+            oscillator.disconnect();
+            gain.disconnect();
+            this.voices.delete(voice);
+        };
+        oscillator.start(now);
+        oscillator.stop(now + sound.duration);
     }
 
-    /**
-     * Upward pitch sweep for jumping
-     */
-    public playJumpSound(): void {
-        if (this._isMuted) return;
-        this.resumeContext();
-        const now = this.ctx.currentTime;
-
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(150, now);
-        osc.frequency.exponentialRampToValueAtTime(450, now + 0.15);
-
-        gain.gain.setValueAtTime(0.25, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-
-        osc.start(now);
-        osc.stop(now + 0.19);
-    }
-
-    /**
-     * Friction whoosh sound for sliding
-     */
-    public playSlideSound(): void {
-        if (this._isMuted) return;
-        this.resumeContext();
-        const now = this.ctx.currentTime;
-
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(240, now);
-        osc.frequency.exponentialRampToValueAtTime(90, now + 0.22);
-
-        gain.gain.setValueAtTime(0.18, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
-
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-
-        osc.start(now);
-        osc.stop(now + 0.25);
-    }
-
-    /**
-     * Heavy bass crunch thud on crash
-     */
-    public playCrashSound(): void {
-        if (this._isMuted) return;
-        this.resumeContext();
-        const now = this.ctx.currentTime;
-
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(160, now);
-        osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
-
-        gain.gain.setValueAtTime(0.4, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
-
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-
-        osc.start(now);
-        osc.stop(now + 0.43);
-    }
-
-    public playBGM(): void {
-        this.resumeContext();
-    }
-
-    public pauseBGM(): void {
-        // Reserved for background music tracks
+    public dispose(): void {
+        if (this.disposed) return;
+        this.disposed = true;
+        for (const voice of this.voices) {
+            voice.oscillator.onended = null;
+            voice.oscillator.stop();
+            voice.oscillator.disconnect();
+            voice.gain.disconnect();
+        }
+        this.voices.clear();
+        this.masterGain.disconnect();
     }
 }

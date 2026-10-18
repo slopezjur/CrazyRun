@@ -1,28 +1,41 @@
-import * as THREE from 'three/webgpu';
-import { Entity } from './Entity';
-import { MaterialFactory } from '../graphics/MaterialFactory';
+import { Entity, type EntityVisual, type IAnimatedEntity } from './Entity';
+import type { CollisionResponse } from '../CollisionManager';
+import type { SpawnData } from '../SpawnPolicy';
 
-export class Collectible extends Entity {
-    constructor() {
-        const geometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16);
-        geometry.rotateX(Math.PI / 2); // Rotate to stand like a coin
-        const nodeMat = MaterialFactory.createCurvedMaterial(0xffff00);
-        super(geometry, nodeMat);
+export class Collectible extends Entity implements IAnimatedEntity {
+    constructor(visual: EntityVisual, private readonly onCollected: (entity: Collectible) => void,
+        private readonly onMissed?: (entity: Collectible) => void) {
+        super(visual);
     }
 
-    public get isSolid(): boolean {
-        return false;
+    public override spawn(x: number, y: number, z: number, data?: SpawnData): void {
+        this.mesh.rotation.set(0, 0, 0);
+        super.spawn(x, y, z, data);
     }
 
-    public spawn(x: number, y: number, z: number): void {
-        // Float slightly above the ground
-        super.spawn(x, y + 1.0, z);
-    }
-
-    public animate(deltaTime: number): void {
+    public onCollide(): CollisionResponse {
         if (this.isActive) {
-            this.mesh.rotation.y += 3.0 * deltaTime;
-            this.syncBounds();
+            this.despawn();
+            this.onCollected(this);
         }
+        return 'continue';
+    }
+
+    public override expire(): void {
+        if (this.isActive) this.onMissed?.(this);
+        super.expire();
+    }
+
+    public attractTo(x: number, y: number, fraction: number): void {
+        if (!this.isActive) return;
+        this.mesh.position.x += (x - this.mesh.position.x) * fraction;
+        this.mesh.position.y += (y - this.mesh.position.y) * fraction;
+        this.syncBounds();
+    }
+
+    public animate(delta: number): void {
+        if (!this.isActive) return;
+        this.mesh.rotation.y += 3 * delta;
+        this.syncBounds();
     }
 }

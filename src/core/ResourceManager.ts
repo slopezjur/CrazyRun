@@ -1,46 +1,45 @@
-import * as THREE from 'three/webgpu';
-import { GLTFLoader, GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import type * as THREE from 'three';
 
-export class ResourceManager {
-    private static gltfLoader = new GLTFLoader();
+export interface IResourceDisposer {
+    dispose(object: THREE.Object3D): void;
+}
 
-    public static async loadModel(url: string): Promise<GLTF | null> {
-        return new Promise((resolve) => {
-            this.gltfLoader.load(
-                url,
-                (gltf) => resolve(gltf),
-                undefined,
-                (error) => {
-                    console.warn(`Failed to load model from ${url}:`, error);
-                    resolve(null);
-                }
-            );
-        });
-    }
-    public static dispose(object: THREE.Object3D): void {
-        object.traverse((child: any) => {
-            if (child.isMesh || child.isPoints || child.isLine) {
-                if (child.geometry) {
-                    child.geometry.dispose();
-                }
-                if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach((mat: any) => this.disposeMaterial(mat));
-                    } else {
-                        this.disposeMaterial(child.material);
+interface ResourceObject extends THREE.Object3D {
+    geometry?: THREE.BufferGeometry;
+    material?: THREE.Material | THREE.Material[];
+    skeleton?: THREE.Skeleton;
+    isLight?: boolean;
+}
+
+export class ResourceManager implements IResourceDisposer {
+    private readonly disposed = new WeakSet<object>();
+
+    public dispose(object: THREE.Object3D): void {
+        object.traverse(child => {
+            const resource = child as ResourceObject;
+            if (resource.geometry) this.release(resource.geometry);
+            if (resource.material) {
+                const materials = Array.isArray(resource.material) ? resource.material : [resource.material];
+                for (const material of materials) {
+                    for (const value of Object.values(material)) {
+                        if (this.isTexture(value)) this.release(value);
                     }
+                    this.release(material);
                 }
             }
+            if (resource.skeleton) this.release(resource.skeleton);
+            if (resource.isLight) this.release(child as THREE.Light);
         });
     }
 
-    private static disposeMaterial(material: any): void {
-        if (material.map) material.map.dispose();
-        if (material.lightMap) material.lightMap.dispose();
-        if (material.bumpMap) material.bumpMap.dispose();
-        if (material.normalMap) material.normalMap.dispose();
-        if (material.specularMap) material.specularMap.dispose();
-        if (material.envMap) material.envMap.dispose();
-        material.dispose();
+    private isTexture(value: unknown): value is THREE.Texture {
+        return typeof value === 'object' && value !== null
+            && 'isTexture' in value && value.isTexture === true;
+    }
+
+    private release(resource: { dispose(): void }): void {
+        if (this.disposed.has(resource)) return;
+        this.disposed.add(resource);
+        resource.dispose();
     }
 }

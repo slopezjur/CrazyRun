@@ -2,42 +2,45 @@ import * as THREE from 'three/webgpu';
 
 export class AnimationController {
     private mixer?: THREE.AnimationMixer;
-    private actions: Map<string, THREE.AnimationAction> = new Map();
+    private readonly actions = new Map<string, THREE.AnimationAction>();
     private activeAction?: THREE.AnimationAction;
+    private root?: THREE.Object3D;
 
     public initialize(mesh: THREE.Object3D): void {
+        this.dispose();
+        this.root = mesh;
         this.mixer = new THREE.AnimationMixer(mesh);
     }
 
     public registerAction(name: string, clip: THREE.AnimationClip): void {
-        if (!this.mixer) return;
-        const action = this.mixer.clipAction(clip);
-        this.actions.set(name, action);
+        if (this.mixer) this.actions.set(name, this.mixer.clipAction(clip));
     }
 
-    public getAction(name: string): THREE.AnimationAction | undefined {
-        return this.actions.get(name);
+    public setTimeScale(name: string, speed: number): void {
+        this.actions.get(name)?.setEffectiveTimeScale(speed);
     }
 
     public fadeToAction(name: string, duration: number): void {
-        if (!this.mixer) return;
-        
-        const newAction = this.actions.get(name);
-        if (!newAction || newAction === this.activeAction) return;
-
-        newAction.reset();
-        newAction.setEffectiveTimeScale(1);
-        newAction.setEffectiveWeight(1);
-        
-        if (this.activeAction) {
-            newAction.crossFadeFrom(this.activeAction, duration, true);
-        }
-        
-        newAction.play();
-        this.activeAction = newAction;
+        const action = this.actions.get(name);
+        if (!action || action === this.activeAction) return;
+        action.reset();
+        action.setEffectiveTimeScale(1);
+        action.setEffectiveWeight(1);
+        if (this.activeAction) action.crossFadeFrom(this.activeAction, duration, true);
+        action.play();
+        this.activeAction = action;
     }
 
-    public update(deltaTime: number): void {
-        this.mixer?.update(deltaTime);
+    public update(delta: number): void {
+        this.mixer?.update(delta);
+    }
+
+    public dispose(): void {
+        this.mixer?.stopAllAction();
+        if (this.root) this.mixer?.uncacheRoot(this.root);
+        this.actions.clear();
+        this.mixer = undefined;
+        this.root = undefined;
+        this.activeAction = undefined;
     }
 }
