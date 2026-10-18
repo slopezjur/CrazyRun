@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AnimationClip, BoxGeometry, Group, Material, Mesh, MeshStandardMaterial, NumberKeyframeTrack, Texture } from 'three';
+import { AnimationClip, BoxGeometry, Group, Mesh, MeshStandardMaterial, NumberKeyframeTrack, ShaderMaterial, Texture } from 'three';
 import { ResourceManager } from '../src/core/ResourceManager.ts';
 
 // Three.js r167 reads self at module load even when no GPU renderer is constructed.
@@ -91,12 +91,12 @@ test('failed material preparation retains the fallback and disposes the rejected
     const fallback = view.mesh.children[0];
     const model = new Group();
     const geometry = new BoxGeometry();
-    model.add(new Mesh(geometry, new MeshStandardMaterial()), new Mesh(geometry, new Material()));
+    model.add(new Mesh(geometry, new MeshStandardMaterial()), new Mesh(geometry, new ShaderMaterial()));
     let released = 0;
     geometry.addEventListener('dispose', () => released++);
     await assert.rejects(view.loadCharacter({
         async loadModel() { return { scene: model, animations: [] }; }
-    }, 'unsupported.glb'), /not compatible/);
+    }, 'unsupported.glb'), /Material "ShaderMaterial" is not compatible/);
     assert.equal(view.mesh.children[0], fallback);
     assert.equal(released, 1);
     view.dispose();
