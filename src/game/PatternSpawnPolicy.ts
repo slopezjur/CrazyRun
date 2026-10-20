@@ -1,4 +1,5 @@
 import { biomeAt, MAX_SPEED, ROW_SPACING, seededRandom, spectacleAt, type Challenge, type Biome } from './Challenge';
+import { POWER_UP_IDS, type PowerUp } from './PowerUps';
 import type { ISpawnPolicy, SpawnEntity } from './SpawnPolicy';
 
 export interface PatternRow {
@@ -51,7 +52,8 @@ export class PatternSpawnPolicy implements ISpawnPolicy {
     constructor(
         private readonly context: () => { challenge: Challenge; distance: number },
         private readonly biomes: Readonly<Record<Biome, BiomeCourse>> = BIOME_COURSES,
-        private readonly coinPaths: Readonly<Record<string, (coin: number) => number>> = ACTION_COIN_PATHS
+        private readonly coinPaths: Readonly<Record<string, (coin: number) => number>> = ACTION_COIN_PATHS,
+        private readonly powerUps: readonly PowerUp[] = POWER_UP_IDS
     ) {}
 
     public spawn(z: number, spawn: SpawnEntity): void {
@@ -82,8 +84,8 @@ export class PatternSpawnPolicy implements ISpawnPolicy {
                     { chainId: index * 2 + 1, chainSize: 5 });
             }
         }
-        if (index % 4 === 2) {
-            const power = (['magnet', 'shield', 'slow'] as const)[Math.floor(random() * 3)];
+        if (index % 4 === 2 && this.powerUps.length > 0) {
+            const power = this.powerUps[Math.floor(random() * this.powerUps.length)];
             // The pickup follows the action, after clearance, in the direction of travel.
             spawn(power, row.actionLane * 1.5, 0, z - 22);
         }

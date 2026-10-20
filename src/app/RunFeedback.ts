@@ -8,7 +8,7 @@ export const FEEDBACK_RULES: FeedbackRules = {
     shieldSaved: { sound: 'reward', shake: 0.5 }, smash: { shake: 0.5 },
     chain: { sound: 'reward' }, nearMiss: { sound: 'reward' }, crazy: { sound: 'reward' },
     milestone: { sound: 'reward' }, biome: { sound: 'reward' }, spectacle: { sound: 'reward' },
-    magnet: { sound: 'reward' }, shield: { sound: 'reward' }, slow: { sound: 'reward' }
+    powerUp: { sound: 'reward' }
 };
 
 export class RunFeedback {

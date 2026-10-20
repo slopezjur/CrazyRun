@@ -3,7 +3,7 @@ import type { EntityVisual } from '../entities/Entity';
 import type { SpawnChoice } from '../SpawnPolicy';
 import type { HazardBehavior } from '../entities/Hazard';
 import { SwayMotion, GateMotion, CollapseMotion } from './HazardMotion';
-import type { PowerUp } from '../RunSession';
+import type { PowerUp } from '../PowerUps';
 import { MaterialFactory } from './MaterialFactory';
 
 export interface ObstacleDefinition extends SpawnChoice {
@@ -127,14 +127,16 @@ export const HAZARD_DEFINITIONS: readonly HazardDefinition[] = [
     }
 ];
 
-const POWER_VISUALS: Readonly<Record<PowerUp, { color: number; geometry(): THREE.BufferGeometry }>> = {
+export interface PowerVisualDefinition { readonly color: number; geometry(): THREE.BufferGeometry; }
+export const POWER_VISUALS: Readonly<Record<PowerUp, PowerVisualDefinition>> = {
     magnet: { color: 0x40dfff, geometry: () => new THREE.TorusGeometry(0.35, 0.13, 8, 16, Math.PI * 1.5) },
     shield: { color: 0x8dffb3, geometry: () => new THREE.IcosahedronGeometry(0.48) },
     slow: { color: 0xc49aff, geometry: () => new THREE.OctahedronGeometry(0.5) }
 };
 
-export function createPowerVisual(power: PowerUp): EntityVisual {
-    const definition = POWER_VISUALS[power];
+export function createPowerVisual(power: PowerUp, definitions = POWER_VISUALS): EntityVisual {
+    const definition = definitions[power];
+    if (!definition) throw new RangeError('Unknown power-up visual: ' + power);
     const material = new THREE.MeshStandardNodeMaterial({
         color: definition.color, emissive: definition.color, emissiveIntensity: 0.7, roughness: 0.25
     });

@@ -160,10 +160,8 @@ export class RunUI {
         meter.value = this.run.crazyRemaining > 0 ? this.run.crazyFraction * 100 : this.run.charge;
         this.set('crazy-label', this.run.crazyRemaining > 0 ? `${this.t('crazy')} ${this.run.crazyRemaining.toFixed(1)}s` : this.t('crazyCharge'));
         this.document.body.classList.toggle('crazy-active', this.state.currentState === GameState.Playing && this.run.crazyRemaining > 0);
-        const powers: string[] = [];
-        if (this.run.shield) powers.push(this.t('shield'));
-        if (this.run.magnetRemaining > 0) powers.push(`${this.t('magnet')} ${Math.ceil(this.run.magnetRemaining)}s`);
-        if (this.run.slowRemaining > 0) powers.push(`${this.t('slow')} ${Math.ceil(this.run.slowRemaining)}s`);
+        const powers = this.run.activePowers.map(power => power.remaining === null
+            ? this.t(power.id) : `${this.t(power.id)} ${Math.ceil(power.remaining)}s`);
         this.set('run-powers', powers.join(' · '));
         this.set('ghost-delta', ghostDistance === null ? '' : `${this.t(ghostDistance >= 0 ? 'ghostAhead' : 'ghostBehind')} ${Math.abs(ghostDistance).toFixed(0)} m`);
         const mission = this.profile.missions.find(item => this.profile.missionProgress(item.id) < item.goal);

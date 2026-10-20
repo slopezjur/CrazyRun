@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>CrazyRun</title>
   </head>
   <body>
@@ -88,14 +88,22 @@
           </div>
 
           <!-- Mobile Touch Action Buttons -->
-          <div id="controls-touch-mobile">
+          <div id="controls-touch-mobile" role="group" aria-label="Movement controls" data-i18n-aria="movementControls">
             <div class="touch-cluster left-cluster">
-              <button id="btn-touch-left" class="touch-btn" aria-label="Move Left">◀</button>
-              <button id="btn-touch-right" class="touch-btn" aria-label="Move Right">▶</button>
+              <button id="btn-touch-left" type="button" class="touch-btn" aria-label="Move left" data-i18n-aria="moveLeft">
+                <span class="touch-icon" aria-hidden="true">←</span><span class="touch-label" data-i18n="left">Left</span>
+              </button>
+              <button id="btn-touch-right" type="button" class="touch-btn" aria-label="Move right" data-i18n-aria="moveRight">
+                <span class="touch-icon" aria-hidden="true">→</span><span class="touch-label" data-i18n="right">Right</span>
+              </button>
             </div>
             <div class="touch-cluster right-cluster">
-              <button id="btn-touch-jump" class="touch-btn action-jump" aria-label="Jump">▲</button>
-              <button id="btn-touch-slide" class="touch-btn action-slide" aria-label="Slide">▼</button>
+              <button id="btn-touch-jump" type="button" class="touch-btn action-jump" aria-label="Jump" data-i18n-aria="jump">
+                <span class="touch-icon" aria-hidden="true">↑</span><span class="touch-label" data-i18n="jump">Jump</span>
+              </button>
+              <button id="btn-touch-slide" type="button" class="touch-btn action-slide" aria-label="Slide" data-i18n-aria="slide">
+                <span class="touch-icon" aria-hidden="true">↓</span><span class="touch-label" data-i18n="slide">Slide</span>
+              </button>
             </div>
           </div>
         </div>

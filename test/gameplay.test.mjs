@@ -7,7 +7,7 @@ import { Signal } from '../src/core/Signal.ts';
 import { GameController } from '../src/game/GameController.ts';
 import { GameScene } from '../src/game/GameScene.ts';
 import { Player } from '../src/game/Player.ts';
-import { RunSession } from '../src/game/RunSession.ts';
+import { createRunSession } from './helpers/run-session.mjs';
 import { endlessChallenge } from '../src/game/Challenge.ts';
 import { SimulationLoop } from '../src/core/SimulationLoop.ts';
 
@@ -29,7 +29,7 @@ function sceneFixture() {
     const actions = new Signal();
     const recycled = new Signal();
     const calls = { fixed: [], frames: 0, scrolls: [], spawns: [], sounds: [], bonuses: [], finalized: 0, input: 0 };
-    const run = new RunSession(endlessChallenge('fixture'));
+    const run = createRunSession(endlessChallenge('fixture'));
     const player = {
         onAction: listener => actions.subscribe(listener),
         fixedUpdate: (...args) => calls.fixed.push(args),

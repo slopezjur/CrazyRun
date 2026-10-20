@@ -1,6 +1,7 @@
 import type { CollisionResponse } from './CollisionManager';
 import type { IGameplayOutcomes } from './GameScene';
-import type { IRunRewardsPolicy, PowerUp } from './RunSession';
+import type { PowerUp } from './PowerUps';
+import type { IRunRewardsPolicy } from './RunSession';
 import type { IScoreTracker } from './ScoreTracker';
 import type { SpawnData } from './SpawnPolicy';
 

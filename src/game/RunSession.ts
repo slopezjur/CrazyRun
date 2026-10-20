@@ -1,16 +1,19 @@
 import { Signal, type Unsubscribe } from '../core/Signal';
 import { biomeAt, spectacleAt, MAX_SPEED, MODIFIER_RULES, type Biome, type Challenge } from './Challenge';
+import type { ActivePowerUp, IRunPowerUps, PowerUp } from './PowerUps';
+export type { PowerUp } from './PowerUps';
 
 const CRAZY_DURATION = 7;
-
-export type PowerUp = 'magnet' | 'shield' | 'slow';
 export type RunNotice = 'chain' | 'nearMiss' | 'crazy' | 'shieldSaved' | 'milestone'
-    | 'biome' | 'warning' | 'spectacle' | 'magnet' | 'shield' | 'slow' | 'combo';
-export interface RunEvent {
-    readonly type: RunNotice | 'coin' | 'smash';
+    | 'biome' | 'warning' | 'spectacle' | 'powerUp' | 'combo';
+interface RunEventData {
     readonly value?: number;
     readonly position?: readonly [number, number, number];
 }
+export type RunEvent = RunEventData & (
+    | { readonly type: Exclude<RunNotice, 'powerUp'> | 'coin' | 'smash' }
+    | { readonly type: 'powerUp'; readonly powerUp: PowerUp }
+);
 
 export interface RunStats {
     distance: number;
@@ -34,8 +37,8 @@ export interface IRunState {
     readonly charge: number;
     readonly crazyRemaining: number;
     readonly crazyFraction: number;
-    readonly magnetRemaining: number;
-    readonly slowRemaining: number;
+    readonly activePowers: readonly ActivePowerUp[];
+    readonly attractsCoins: boolean;
     readonly shield: boolean;
     readonly graceRemaining: number;
     readonly biome: Biome;
@@ -65,9 +68,6 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     private comboValue = 0;
     private chargeValue = 0;
     private crazyRemainingValue = 0;
-    private magnetRemainingValue = 0;
-    private slowRemainingValue = 0;
-    private shieldValue = false;
     private graceRemainingValue = 0;
     private biomeValue: Biome = 'city';
     private spectacleValue: ReturnType<typeof spectacleAt> = 'none';
@@ -76,7 +76,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     private readonly chains = new Map<number, { count: number; expires: number }>();
     private readonly events = new Signal<RunEvent>();
 
-    constructor(private challengeValue: Challenge) {}
+    constructor(private challengeValue: Challenge, private readonly powers: IRunPowerUps) {}
 
     public get challenge(): Challenge { return this.challengeValue; }
     public selectChallenge(challenge: Challenge): void { this.challengeValue = challenge; }
@@ -86,9 +86,9 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     public get charge(): number { return this.chargeValue; }
     public get crazyRemaining(): number { return this.crazyRemainingValue; }
     public get crazyFraction(): number { return this.crazyRemainingValue / CRAZY_DURATION; }
-    public get magnetRemaining(): number { return this.magnetRemainingValue; }
-    public get slowRemaining(): number { return this.slowRemainingValue; }
-    public get shield(): boolean { return this.shieldValue; }
+    public get activePowers(): readonly ActivePowerUp[] { return this.powers.active; }
+    public get attractsCoins(): boolean { return this.powers.attractsCoins || this.crazyRemainingValue > 0; }
+    public get shield(): boolean { return this.powers.hasProtection; }
     public get graceRemaining(): number { return this.graceRemainingValue; }
     public get biome(): Biome { return this.biomeValue; }
     public get spectacle(): ReturnType<typeof spectacleAt> { return this.spectacleValue; }
@@ -98,7 +98,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     }
 
     public get multiplier(): number { return (1 + Math.min(4, Math.floor(this.comboValue / 5))) * (this.crazyRemainingValue > 0 ? 3 : 1); }
-    public get timeScale(): number { return this.slowRemainingValue > 0 ? 0.55 : 1; }
+    public get timeScale(): number { return this.powers.timeScale; }
 
     public onEvent(listener: (event: RunEvent) => void): Unsubscribe { return this.events.subscribe(listener); }
 
@@ -106,8 +106,8 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
         this.challengeValue = challenge;
         this.statsValue = emptyStats();
         this.elapsedValue = this.comboValue = this.chargeValue = this.crazyRemainingValue = 0;
-        this.magnetRemainingValue = this.slowRemainingValue = this.graceRemainingValue = this.comboRemaining = 0;
-        this.shieldValue = false;
+        this.graceRemainingValue = this.comboRemaining = 0;
+        this.powers.reset();
         this.biomeValue = 'city';
         this.spectacleValue = 'none';
         this.nextMilestone = 500;
@@ -120,9 +120,10 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
         for (const [id, chain] of this.chains) {
             if (chain.expires < this.statsValue.distance) this.chains.delete(id);
         }
-        for (const key of ['crazyRemainingValue', 'magnetRemainingValue', 'slowRemainingValue', 'graceRemainingValue', 'comboRemaining'] as const) {
+        for (const key of ['crazyRemainingValue', 'graceRemainingValue', 'comboRemaining'] as const) {
             this[key] = Math.max(0, this[key] - delta);
         }
+        this.powers.advance(delta);
         if (this.comboRemaining === 0) this.comboValue = 0;
         const biome = biomeAt(this.statsValue.distance);
         if (biome !== this.biomeValue) {
@@ -190,10 +191,8 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     }
 
     public pickUp(power: PowerUp): void {
-        if (power === 'shield') this.shieldValue = true;
-        else if (power === 'magnet') this.magnetRemainingValue = 10;
-        else this.slowRemainingValue = 5;
-        this.events.emit({ type: power });
+        this.powers.activate(power);
+        this.events.emit({ type: 'powerUp', powerUp: power });
     }
 
     public absorbHit(position: readonly [number, number, number]): boolean {
@@ -201,8 +200,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
             this.events.emit({ type: 'smash', position });
             return true;
         }
-        if (!this.shieldValue) return false;
-        this.shieldValue = false;
+        if (!this.powers.consumeProtection()) return false;
         this.graceRemainingValue = 1.5;
         this.comboValue = this.comboRemaining = 0;
         this.events.emit({ type: 'shieldSaved', position });

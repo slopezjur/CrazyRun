@@ -32,14 +32,17 @@ Daily challenges and ghosts require no account or server. Sharing copies a URL w
 - **`GameController`** handles play, restart, pause, and resume. Escape only toggles an existing run.
 - **`Engine`** coordinates frame timing, updates, and rendering through an injected render driver.
 - **`SimulationLoop`** runs gameplay at 60 Hz and caps frame deltas at 100 ms. Pause freezes both fixed and frame updates while rendering continues.
-- **`WebGPURenderDriver`** owns renderer initialization, viewport resizing, and renderer disposal.
+- **`WebGPURenderDriver`** owns renderer initialization, frame submission, and renderer disposal through a narrow backend port. It has no DOM or viewport dependency.
+- **`ViewportBinding`** owns container/window measurements, resize observation, pixel ratio, and camera aspect updates. Its resize targets and observation factory can be substituted independently.
 - **`Diagnostics`** owns the stats panel and state/UPS overlay.
 
 The player remains at Z = 0. The camera remains behind the player at a fixed Z offset. Track chunks and entities scroll toward positive Z and recycle toward the horizon. Track movement, difficulty, physics, hazard motion, scoring, and pickup animation use fixed updates. World movement is subdivided into steps of at most 0.45 units for collision traversal, preventing thin targets from being skipped at maximum speed. Camera easing, model animation, and decorative effects use frame updates.
 
-**`RunSession`** owns active-run statistics, combos, charge, power-up timers, biome boundaries, and gameplay notifications. Its public state is read-only; challenges change through an explicit command. Modifier definitions determine pace and rewards, and the simulation consumes the `IRunSimulation` port. **`Progression`** owns wallet, purchase, mission, preference, and course-record policies through a typed repository. **`GhostReplay`** coordinates separate recording and playback objects through typed storage. Course randomness is derived separately for each pattern and row; cosmetic randomness never advances the course generator.
+**`RunSession`** owns active-run statistics, combos, charge, biome boundaries, and gameplay notifications. It receives an **`IRunPowerUps`** port for temporary effects and protection. Its public state is read-only; challenges change through an explicit command. Modifier definitions determine pace and rewards, and the simulation consumes the `IRunSimulation` port. **`Progression`** owns wallet, purchase, mission, preference, and course-record policies through a typed repository. **`GhostReplay`** coordinates separate recording and playback objects through typed storage. Course randomness is derived separately for each pattern and row; cosmetic randomness never advances the course generator.
 
 **`RunCoordinator`** coordinates run start/retry/abandonment, reward settlement, replay capture, and frame updates through injected ports. **`RunOutcomes`** handles hazard hits, clear rewards, coins, and power-ups. **`RunFeedback`** maps run events to registered audio and camera feedback. Browser focus and challenge sharing use dedicated adapters.
+
+**`PowerUpEffects`** owns activation, duration refresh, expiry, time scaling, and consumable protection. `POWER_UP_DEFINITIONS` supplies effect capabilities, durations, and display order; its ID order is also the default seeded pickup order. Spawning, pickup pools, notifications, and the HUD consume these definitions or active-effect metadata. Additional attraction, protection, or time-scale variants require a definition, visual registration, and translations rather than branches in `RunSession`, the spawner, or the HUD. Power-up events carry their registered ID explicitly.
 
 ### Player and presentation
 
@@ -68,9 +71,9 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 
 ### Input, localization, and storage
 
-**`InputManager`** stores action state without browser dependencies. It tracks held inputs by source so releasing one key or pointer does not cancel another source holding the same action. Swipe gestures produce single-tick pulses.
+**`InputManager`** stores action state without browser dependencies. It tracks held inputs by opaque source ID so releasing one key or pointer does not cancel another source holding the same action. `HeldInputScope` gives each adapter ownership of its IDs, including when independent adapters use the same key or pointer number. Swipe gestures produce single-tick pulses.
 
-**`KeyboardInput`**, **`SwipeInput`**, and **`ButtonInput`** translate browser events into actions and remove their listeners on disposal. Virtual buttons use pointer capture and release actions on cancellation or lost capture. Keyboard focus loss clears held state.
+**`KeyboardInput`**, **`SwipeInput`**, and **`ButtonInput`** translate browser events into actions and remove their listeners on disposal. Virtual buttons use pointer capture and release actions on cancellation or lost capture. Adapter reset, focus loss, and disposal release that adapter's holds. Full-run input resets remain an application responsibility.
 
 **`I18nService`** receives locale definitions, browser language, and a typed storage port. Locale labels and translations live in [`translations.ts`](src/ui/translations.ts). **`UIManager`** receives state, localization, audio controls, and game commands; it does not construct them.
 
@@ -86,7 +89,7 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 
 **`ScoreTracker`** accumulates distance and bonus points, publishes removable score subscriptions, and persists new records through a storage port.
 
-**`RunUI`** presents missions, purchases, challenge selection and sharing, live run status, and results through profile/run interfaces. `RunNotices` supplies notification priorities and expiry without DOM dependencies. Mission definitions in `ProgressionRules.ts` calculate both HUD previews and committed progress, including cumulative and maximum-value goals. Purchase eligibility and the Crazy Mode progress fraction also come from domain queries. Static and dynamic labels are localized in English and Spanish. Menus scroll on short displays and support keyboard focus; gameplay key bindings leave focused form controls alone. Diagnostics are hidden unless `?debug` is present in the URL.
+**`RunUI`** presents missions, purchases, challenge selection and sharing, live run status, and results through profile/run interfaces. Power-up labels and remaining times come from active metadata and localization. `RunNotices` supplies notification priorities and expiry without DOM dependencies. Mission definitions in `ProgressionRules.ts` calculate both HUD previews and committed progress, including cumulative and maximum-value goals. Purchase eligibility and the Crazy Mode progress fraction also come from domain queries. Static and dynamic labels are localized in English and Spanish. Menus scroll on short displays and support keyboard focus; gameplay key bindings leave focused form controls alone. Diagnostics are hidden unless `?debug` is present in the URL.
 
 ### Audio and resources
 
@@ -110,6 +113,10 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 ### Mobile
 
 Swipe left/right to change lanes, up to jump, or down to slide. The bottom-left buttons change lanes; the bottom-right buttons jump and slide. Hold the slide button to continue sliding.
+
+Both thumb zones use labeled 56–72 CSS-pixel targets with 12-pixel gaps, inset from display cutouts and the system gesture area in portrait and landscape. Empty space between buttons passes gestures through to the canvas. A swipe triggers once when movement reaches 24 CSS pixels, without waiting for finger release. A finger that starts on a button can slide onto another button to change actions; moving outside the targets releases its hold. Pointer cancellation, loss of capture/focus, page hiding, and game phase changes clear touch tracking and held feedback. Multiple fingers retain independent holds, and native keyboard/assistive button activation produces a single action pulse.
+
+The game uses the dynamic viewport height so mobile browser toolbars do not cover the controls. `ViewportBinding` follows the game container with a resize observer and leaves canvas CSS sizing intact. Menus allow pinch zoom; browser gestures are suppressed on gameplay surfaces only.
 
 The main menu provides language and mute controls. Scores, locale, and mute settings persist when browser storage is available.
 
@@ -138,6 +145,8 @@ Tests use Node's test runner with `tsx` to import TypeScript source. They cover 
 `test/run-features.test.mjs` adds coverage for challenge links, course invariants, recycled row determinism, biome/event boundaries, chain rewards, power-up expiry, mission accounting, cosmetic persistence, ghost interpolation, pickup reuse, and long-hazard collision edges. Gameplay coverage also compares world progression across render rates. These checks are source tests; they do not replace a browser playthrough of WebGPU rendering and touch layout.
 
 `test/solid-boundaries.test.mjs` covers substitutable service ports, custom mission/catalog rules, extensible hazard motion and course definitions, notification priorities, reward settlement, replay ownership, and browser lifecycle cleanup.
+
+`test/power-ups.test.mjs` covers existing effect timing, refresh/reset behavior, custom definitions across service boundaries, substitutable effect ports, and localized HUD timers. Input tests cover independent adapter ownership; graphics tests verify viewport teardown separately from GPU initialization and disposal.
 
 `npm run typecheck` checks application TypeScript without emitting files. `npm run build` type-checks and produces the Vite bundle in `dist/`.
 

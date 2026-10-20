@@ -7,6 +7,7 @@ import { ResourceManager } from '../src/core/ResourceManager.ts';
 globalThis.self ??= globalThis;
 const { PlayerView } = await import('../src/game/graphics/PlayerView.ts');
 const { WebGPURenderDriver } = await import('../src/core/WebGPURenderDriver.ts');
+const { ViewportBinding } = await import('../src/core/ViewportBinding.ts');
 
 test('loaded character materials preserve textures and support material arrays', async () => {
     const resources = new ResourceManager();
@@ -48,29 +49,60 @@ test('missing models retain the fallback and late models are disposed after shut
     assert.equal(model.parent, null);
 });
 
-test('render driver releases resize listeners and handles disposal during initialization', async () => {
-    const viewport = Object.assign(new EventTarget(), { innerWidth: 800, innerHeight: 600, devicePixelRatio: 2 });
+test('render driver handles disposal during initialization without a browser viewport', async () => {
     let finish;
-    let resized = 0;
     let disposed = 0;
     const renderer = {
         init() { return new Promise(resolve => { finish = resolve; }); },
-        setSize() { resized++; },
-        setPixelRatio() {},
         async setAnimationLoop() {},
         render() {},
         dispose() { disposed++; }
     };
-    const driver = new WebGPURenderDriver(renderer, {}, { updateProjectionMatrix() {} }, viewport);
+    const driver = new WebGPURenderDriver(renderer, {}, {});
     const starting = driver.initialize();
     driver.dispose();
-    viewport.dispatchEvent(new Event('resize'));
-    assert.equal(resized, 1);
     finish();
     await starting;
     assert.equal(disposed, 1);
     driver.dispose();
     assert.equal(disposed, 1);
+});
+
+test('rendering follows the dynamic game container without overriding its CSS size', t => {
+    const previous = globalThis.ResizeObserver;
+    let observed;
+    let notify;
+    let disconnected = false;
+    globalThis.ResizeObserver = class {
+        constructor(callback) { notify = callback; }
+        observe(element) { observed = element; }
+        disconnect() { disconnected = true; }
+    };
+    t.after(() => {
+        if (previous === undefined) delete globalThis.ResizeObserver;
+        else globalThis.ResizeObserver = previous;
+    });
+    const container = { clientWidth: 412, clientHeight: 700 };
+    const viewport = Object.assign(new EventTarget(), { innerWidth: 412, innerHeight: 900, devicePixelRatio: 3 });
+    const sizes = [];
+    const renderer = { setSize: (...args) => sizes.push(args), setPixelRatio() {} };
+    const camera = { aspect: 0, updateProjectionMatrix() {} };
+    const binding = new ViewportBinding(renderer, camera, viewport, container);
+    t.after(() => binding.dispose());
+    assert.equal(observed, container);
+    assert.deepEqual(sizes.at(-1), [412, 700, false]);
+    assert.equal(camera.aspect, 412 / 700);
+    container.clientHeight = 620;
+    notify();
+    assert.deepEqual(sizes.at(-1), [412, 620, false]);
+    assert.equal(camera.aspect, 412 / 620);
+    binding.dispose();
+    assert.equal(disconnected, true);
+    const count = sizes.length;
+    container.clientHeight = 500;
+    notify();
+    viewport.dispatchEvent(new Event('resize'));
+    assert.equal(sizes.length, count);
 });
 
 test('character animation clips advance through the presentation frame update', async () => {
@@ -135,4 +167,12 @@ test('registered hazards preserve course collider dimensions and deterministic m
     close(byId.get('gap').boundingBox.max.x - byId.get('gap').boundingBox.min.x, 1.3);
     close(byId.get('convoy').boundingBox.min.z, -82);
     for (const hazard of byId.values()) resources.dispose(hazard.mesh);
+});
+
+test('power-up visuals accept additional definitions without changing their factory', async () => {
+    const { createPowerVisual } = await import('../src/game/graphics/EntityVisuals.ts');
+    const visual = createPowerVisual('vacuum', { vacuum: { color: 0x123456, geometry: () => new BoxGeometry() } });
+    assert.equal(visual.mesh.material.color.getHex(), 0x123456);
+    assert.equal(visual.yOffset, 1.25);
+    new ResourceManager().dispose(visual.mesh);
 });

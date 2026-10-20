@@ -12,7 +12,7 @@ export interface IRunNotices {
 }
 interface NoticeRule {
     readonly duration: number;
-    readonly key: string | ((run: Pick<IRunState, 'biome'>) => string);
+    readonly key: string | ((run: Pick<IRunState, 'biome'>, event: RunEvent) => string);
     readonly warning?: boolean;
     readonly allowDuringWarning?: boolean;
     readonly interruptions?: readonly RunEvent['type'][];
@@ -21,8 +21,8 @@ export type NoticeRules = Readonly<Partial<Record<RunEvent['type'], NoticeRule>>
 const notice = (key: string): NoticeRule => ({ key, duration: 2.5 });
 export const NOTICE_RULES: NoticeRules = {
     chain: notice('chain'), nearMiss: notice('nearMiss'), shieldSaved: notice('shieldSaved'),
-    milestone: notice('milestone'), magnet: notice('magnet'), shield: notice('shield'),
-    slow: notice('slow'), combo: notice('combo'),
+    milestone: notice('milestone'), combo: notice('combo'),
+    powerUp: { key: (_run, event) => event.type === 'powerUp' ? event.powerUp : 'powerUp', duration: 2.5 },
     crazy: { ...notice('crazy'), interruptions: ['warning', 'shieldSaved'] },
     biome: { key: run => run.biome, duration: 2.5 },
     warning: { key: run => 'warning_' + run.biome, duration: 4, warning: true, allowDuringWarning: true },
@@ -55,7 +55,7 @@ export class RunNotices implements IRunNotices {
         if (!rule) return null;
         return {
             event: this.event,
-            key: typeof rule.key === 'string' ? rule.key : rule.key(this.run),
+            key: typeof rule.key === 'string' ? rule.key : rule.key(this.run, this.event),
             warning: rule.warning === true
         };
     }

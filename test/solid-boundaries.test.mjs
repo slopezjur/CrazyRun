@@ -7,7 +7,7 @@ import { InputManager } from '../src/core/InputManager.ts';
 import { Progression } from '../src/game/Progression.ts';
 import { emptyProfile, PROGRESSION_RULES } from '../src/game/ProgressionRules.ts';
 import { ProfileStorage } from '../src/game/storage/ProfileStorage.ts';
-import { RunSession } from '../src/game/RunSession.ts';
+import { createRunSession } from './helpers/run-session.mjs';
 import { RunInteractions } from '../src/game/RunInteractions.ts';
 import { RunOutcomes } from '../src/game/RunOutcomes.ts';
 import { Player } from '../src/game/Player.ts';
@@ -99,7 +99,7 @@ test('run interactions use hazard and attraction capabilities without touching m
     const hazard = { isActive: true, z: 0, simulate: time => calls.push(['simulate', time]), observe: (...args) => calls.push(['observe', ...args]) };
     const coin = { isActive: true, z: -10, attractTo: (...args) => calls.push(['attract', ...args]) };
     const far = { ...coin, z: -15, attractTo() { throw new Error('out of range'); } };
-    const interactions = new RunInteractions({ elapsed: 5, magnetRemaining: 1, crazyRemaining: 0 },
+    const interactions = new RunInteractions({ elapsed: 5, attractsCoins: true },
         { currentPose: { ...pose, x: 1.5 }, boundingBox: box, isSliding: true }, [hazard], [coin, far]);
     interactions.prepare(0.1);
     interactions.observe();
@@ -144,7 +144,7 @@ test('course biome and coin-path definitions can register new obstacle families'
 });
 
 test('collision rewards are independent of graphics and inactive runs cannot grant points', () => {
-    const run = new RunSession(endlessChallenge('seed'));
+    const run = createRunSession(endlessChallenge('seed'));
     let playing = true;
     let crashes = 0;
     let despawns = 0;
@@ -223,7 +223,7 @@ test('event feedback supports registered sound and shake definitions', () => {
 test('run coordination preserves daily retries, settles once, and never banks abandonment', () => {
     const state = new GameStateManager();
     const ended = new Signal();
-    const run = new RunSession(endlessChallenge('initial'));
+    const run = createRunSession(endlessChallenge('initial'));
     const log = [];
     const game = {
         get isPlaying() { return state.currentState === GameState.Playing; },

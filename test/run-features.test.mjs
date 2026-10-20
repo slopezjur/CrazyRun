@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Box3, BoxGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { dailyChallenge, challengeFromUrl, challengeUrl, endlessChallenge, biomeAt, spectacleAt } from '../src/game/Challenge.ts';
 import { createPattern, validatePattern, PatternSpawnPolicy } from '../src/game/PatternSpawnPolicy.ts';
-import { RunSession } from '../src/game/RunSession.ts';
+import { createRunSession } from './helpers/run-session.mjs';
 import { ProfileStorage } from '../src/game/storage/ProfileStorage.ts';
 import { GhostStorage } from '../src/game/storage/GhostStorage.ts';
 import { Progression } from '../src/game/Progression.ts';
@@ -66,7 +66,7 @@ test('biomes and event warnings occur at reproducible distance boundaries', () =
 });
 
 test('complete coin chains reward skill; missed chains do not award completion', () => {
-    const run = new RunSession(endlessChallenge('seed'));
+    const run = createRunSession(endlessChallenge('seed'));
     let points = 0;
     for (let coin = 0; coin < 3; coin++) points += run.collectCoin(1, 3, [0, 1, 0]);
     assert.equal(points, 550);
@@ -81,7 +81,7 @@ test('complete coin chains reward skill; missed chains do not award completion',
 });
 
 test('Crazy Mode absorbs collisions, expires, and shields consume only one charge', () => {
-    const run = new RunSession(endlessChallenge('seed'));
+    const run = createRunSession(endlessChallenge('seed'));
     for (let i = 0; i < 9; i++) run.clearObstacle(false, true);
     assert.equal(run.stats.crazyModes, 1);
     assert.ok(run.multiplier >= 3);

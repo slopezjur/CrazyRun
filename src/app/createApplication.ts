@@ -12,6 +12,7 @@ import { Lifetime } from '../core/Lifetime';
 import { ResourceManager } from '../core/ResourceManager';
 import { SimulationLoop } from '../core/SimulationLoop';
 import { BrowserStorage, StoredValue, parseHighScore } from '../core/StorageService';
+import { ViewportBinding } from '../core/ViewportBinding';
 import { WebGPURenderDriver } from '../core/WebGPURenderDriver';
 import { AudioManager } from '../game/AudioManager';
 import { SOUNDS } from '../game/audio/sounds';
@@ -32,6 +33,7 @@ import { Player } from '../game/Player';
 import { ScoreTracker } from '../game/ScoreTracker';
 import { PatternSpawnPolicy } from '../game/PatternSpawnPolicy';
 import { challengeFromUrl, dailyChallenge, endlessChallenge, ROW_SPACING } from '../game/Challenge';
+import { PowerUpEffects, POWER_UP_DEFINITIONS } from '../game/PowerUps';
 import { RunSession } from '../game/RunSession';
 import { Progression } from '../game/Progression';
 import { GhostReplay } from '../game/GhostReplay';
@@ -77,14 +79,15 @@ export function createApplication(document: Document, viewport: Window): Applica
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         const url = new URL(viewport.location.href);
         const diagnostics = lifetime.use(new Diagnostics(document, state, loop, url.searchParams.has('debug')));
-        const driver = new WebGPURenderDriver(renderer, scene, camera, viewport);
+        const driver = new WebGPURenderDriver(renderer, scene, camera);
         const engine = lifetime.use(new Engine(driver, delta => loop.tick(delta), diagnostics));
+        lifetime.use(new ViewportBinding(renderer, camera, viewport, canvas.parentElement ?? undefined));
 
         const storage = new BrowserStorage(() => viewport.localStorage);
         const newSeed = (): string => Array.from(viewport.crypto.getRandomValues(new Uint32Array(2)))
             .map(value => value.toString(36)).join('-');
         const linkedChallenge = challengeFromUrl(url);
-        const run = lifetime.use(new RunSession(endlessChallenge(newSeed())));
+        const run = lifetime.use(new RunSession(endlessChallenge(newSeed()), new PowerUpEffects(POWER_UP_DEFINITIONS)));
         const profile = lifetime.use(new Progression(new ProfileStorage(storage, viewport.matchMedia('(prefers-reduced-motion: reduce)').matches)));
         const replay = new GhostReplay(new GhostStorage(storage));
         const score = lifetime.use(new ScoreTracker(new StoredValue(storage, 'crazyrun_highscore', parseHighScore, String)));
@@ -135,15 +138,15 @@ export function createApplication(document: Document, viewport: Window): Applica
         });
         pools.set('coin', coins);
         const animated = [...coins.getAll()];
-        for (const power of ['magnet', 'shield', 'slow'] as const) {
+        for (const power of POWER_UP_DEFINITIONS) {
             const pool = new EntityPool(8, () => {
-                const entity = new Collectible(createPowerVisual(power), () => {
-                    outcomes.power(power);
+                const entity = new Collectible(createPowerVisual(power.id), () => {
+                    outcomes.power(power.id);
                 });
                 scene.add(entity.mesh);
                 return entity;
             });
-            pools.set(power, pool);
+            pools.set(power.id, pool);
             animated.push(...pool.getAll());
         }
         const spawning = new PatternSpawnPolicy(() => ({ challenge: run.challenge, distance: run.stats.distance }));
@@ -177,8 +180,8 @@ export function createApplication(document: Document, viewport: Window): Applica
         lifetime.defer(loop.onFixedUpdate(coordinator.fixedUpdate));
         lifetime.defer(loop.onFrameUpdate(coordinator.update));
         lifetime.use(new BrowserGameEvents(document, viewport, state, () => commands.togglePause()));
-        lifetime.use(new KeyboardInput(viewport, input, () => commands.togglePause()));
-        lifetime.use(new SwipeInput(canvas, input));
+        const keyboard = lifetime.use(new KeyboardInput(viewport, input, () => commands.togglePause()));
+        const swipes = lifetime.use(new SwipeInput(canvas, input));
         const buttons = new Map<HTMLElement, InputAction>();
         for (const [id, action] of [
             ['btn-touch-left', InputAction.Left], ['btn-touch-right', InputAction.Right],
@@ -187,7 +190,12 @@ export function createApplication(document: Document, viewport: Window): Applica
             const element = document.getElementById(id);
             if (element) buttons.set(element, action);
         }
-        lifetime.use(new ButtonInput(buttons, input));
+        const touchButtons = lifetime.use(new ButtonInput(buttons, input));
+        lifetime.defer(state.onStateChange(() => {
+            keyboard.reset();
+            swipes.reset();
+            touchButtons.reset();
+        }));
 
         const draco = lifetime.use(new DRACOLoader());
         draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');

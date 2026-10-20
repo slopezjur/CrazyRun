@@ -10,19 +10,21 @@ export interface IInputReader {
     isActionTriggered(action: InputAction): boolean;
 }
 
+export type InputSourceId = string | symbol;
+
 export interface IInputWriter {
-    press(source: string, action: InputAction): void;
-    release(source: string): void;
+    press(source: InputSourceId, action: InputAction): void;
+    release(source: InputSourceId): void;
     pulse(action: InputAction): void;
     reset(): void;
 }
 
 export class InputManager implements IInputReader, IInputWriter {
-    private readonly sources = new Map<string, InputAction>();
+    private readonly sources = new Map<InputSourceId, InputAction>();
     private readonly activeCounts = new Map<InputAction, number>();
     private readonly triggeredActions = new Set<InputAction>();
 
-    public press(source: string, action: InputAction): void {
+    public press(source: InputSourceId, action: InputAction): void {
         if (this.sources.get(source) === action) return;
         this.release(source);
         const count = this.activeCounts.get(action) ?? 0;
@@ -31,7 +33,7 @@ export class InputManager implements IInputReader, IInputWriter {
         this.sources.set(source, action);
     }
 
-    public release(source: string): void {
+    public release(source: InputSourceId): void {
         const action = this.sources.get(source);
         if (action === undefined) return;
         this.sources.delete(source);
@@ -60,5 +62,33 @@ export class InputManager implements IInputReader, IInputWriter {
         this.sources.clear();
         this.activeCounts.clear();
         this.resetTriggers();
+    }
+}
+
+/** Owns held input IDs so independent adapters cannot release each other's actions. */
+export class HeldInputScope {
+    private readonly sources = new Map<string, symbol>();
+
+    constructor(private readonly input: Pick<IInputWriter, 'press' | 'release'>) {}
+
+    public press(key: string, action: InputAction): void {
+        let source = this.sources.get(key);
+        if (source === undefined) {
+            source = Symbol(key);
+            this.sources.set(key, source);
+        }
+        this.input.press(source, action);
+    }
+
+    public release(key: string): void {
+        const source = this.sources.get(key);
+        if (source === undefined) return;
+        this.sources.delete(key);
+        this.input.release(source);
+    }
+
+    public releaseAll(): void {
+        for (const source of this.sources.values()) this.input.release(source);
+        this.sources.clear();
     }
 }
