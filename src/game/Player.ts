@@ -23,12 +23,16 @@ export class Player implements IPlayer, IPlayerState {
     private grounded = true;
     private sliding = false;
     private slideTimer = 0;
+    private jumpBuffer = 0;
+    private slideBuffer = 0;
     private readonly pose: PlayerPose = { x: 0, y: 1, z: 0, scaleY: 1, tiltX: 0 };
     private readonly actions = new Signal<'jump' | 'slide'>();
     private readonly laneWidth = 1.5;
     private readonly gravity = -30;
     private readonly jumpImpulse = 12;
     private readonly slideDuration = 1;
+    // A jump or slide pressed this long before touchdown still applies on landing.
+    private readonly inputBuffer = 0.12;
 
     constructor(
         private readonly input: IInputReader,
@@ -60,6 +64,7 @@ export class Player implements IPlayer, IPlayerState {
         this.grounded = true;
         this.sliding = false;
         this.slideTimer = 0;
+        this.jumpBuffer = this.slideBuffer = 0;
         Object.assign(this.pose, { x: 0, y: 1, z: 0, scaleY: 1, tiltX: 0 });
         this.presentation.setPose(this.pose);
         this.syncBounds();
@@ -68,7 +73,7 @@ export class Player implements IPlayer, IPlayerState {
 
     public fixedUpdate(delta: number, speed: number, acceptInput: boolean): void {
         if (speed !== 0) {
-            if (acceptInput) this.handleInput();
+            if (acceptInput) this.handleInput(delta);
             this.pose.x += (this.currentLane * this.laneWidth - this.pose.x) * 10 * delta;
             this.pose.scaleY += ((this.sliding ? 0.5 : 1) - this.pose.scaleY) * 16 * delta;
             this.pose.tiltX += ((this.sliding ? -0.4 : 0) - this.pose.tiltX) * 16 * delta;
@@ -94,16 +99,24 @@ export class Player implements IPlayer, IPlayerState {
         this.presentation.setAnimation(animation, speed);
     }
 
-    private handleInput(): void {
+    private buffered(action: InputAction, remaining: number, delta: number): number {
+        return this.input.isActionTriggered(action) ? this.inputBuffer : Math.max(0, remaining - delta);
+    }
+
+    private handleInput(delta: number): void {
         if (this.input.isActionTriggered(InputAction.Left) && this.currentLane > -1) this.currentLane--;
         if (this.input.isActionTriggered(InputAction.Right) && this.currentLane < 1) this.currentLane++;
-        if (this.input.isActionTriggered(InputAction.Jump) && this.grounded) {
+        this.jumpBuffer = this.buffered(InputAction.Jump, this.jumpBuffer, delta);
+        this.slideBuffer = this.buffered(InputAction.Slide, this.slideBuffer, delta);
+        if (this.jumpBuffer > 0 && this.grounded) {
+            this.jumpBuffer = 0;
             this.yVelocity = this.jumpImpulse;
             this.grounded = false;
             this.sliding = false;
             this.actions.emit('jump');
         }
-        if (this.input.isActionTriggered(InputAction.Slide) && this.grounded) {
+        if (this.slideBuffer > 0 && this.grounded) {
+            this.slideBuffer = 0;
             if (!this.sliding) this.actions.emit('slide');
             this.sliding = true;
             this.slideTimer = this.slideDuration;

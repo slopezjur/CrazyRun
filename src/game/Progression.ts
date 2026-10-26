@@ -101,7 +101,10 @@ export class Progression implements IProgressionView, IProfileCommands, IRunRewa
             }
         }
         this.profile.wallet = boundedCount(this.profile.wallet + earned);
-        this.profile.bests[key] = Math.max(this.best(key), boundedCount(score));
+        const best = Math.max(this.best(key), boundedCount(score));
+        // Re-insert so the most recently played course is retained when trimming the oldest entries.
+        delete this.profile.bests[key];
+        this.profile.bests[key] = best;
         const keys = Object.keys(this.profile.bests);
         for (const old of keys.slice(0, Math.max(0, keys.length - 32))) delete this.profile.bests[old];
         this.save();

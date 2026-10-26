@@ -78,9 +78,10 @@ export function createApplication(document: Document, viewport: Window): Applica
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         const url = new URL(viewport.location.href);
-        const diagnostics = lifetime.use(new Diagnostics(document, state, loop, url.searchParams.has('debug')));
+        const debug = url.searchParams.has('debug');
+        const diagnostics = lifetime.use(new Diagnostics(document, state, loop, debug));
         const driver = new WebGPURenderDriver(renderer, scene, camera);
-        const engine = lifetime.use(new Engine(driver, delta => loop.tick(delta), diagnostics));
+        const engine = lifetime.use(new Engine(driver, delta => loop.tick(delta), debug ? diagnostics : undefined));
         lifetime.use(new ViewportBinding(renderer, camera, viewport, canvas.parentElement ?? undefined));
 
         const storage = new BrowserStorage(() => viewport.localStorage);

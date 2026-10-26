@@ -12,4 +12,8 @@ async function bootstrap(): Promise<void> {
     }
 }
 
-void bootstrap().catch(error => console.error('Failed to bootstrap game:', error));
+void bootstrap().catch(error => {
+    console.error('Failed to bootstrap game:', error);
+    // The menu stays visible but inert once the application is disposed; explain why instead.
+    document.getElementById('boot-error')?.removeAttribute('hidden');
+});

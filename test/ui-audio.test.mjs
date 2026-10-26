@@ -123,3 +123,16 @@ test('audio accepts new sound definitions, persists mute through its port, and r
     assert.equal(context.gains[0].disconnected, true);
     assert.deepEqual(saves, [true, false]);
 });
+
+test('audio resumes contexts that Safari reports as interrupted', () => {
+    const context = audioContext();
+    let resumes = 0;
+    context.resume = async () => { resumes++; };
+    const audio = new AudioManager(context, { load: () => false, save() {} }, new Map());
+    for (const state of ['interrupted', 'suspended', 'running', 'closed']) {
+        context.state = state;
+        audio.unlock();
+    }
+    assert.equal(resumes, 2);
+    audio.dispose();
+});

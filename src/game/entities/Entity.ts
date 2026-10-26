@@ -65,7 +65,9 @@ export abstract class Entity implements IManagedEntity {
     public scroll(amount: number): void {
         if (!this.active) return;
         this.mesh.position.z += amount;
-        this.syncBounds();
+        // Scrolling is a pure translation, so the measured bounds move without re-measuring the collider.
+        this.boundingBox.min.z += amount;
+        this.boundingBox.max.z += amount;
     }
 
     public syncBounds(): void {

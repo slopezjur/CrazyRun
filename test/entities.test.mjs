@@ -153,3 +153,18 @@ test('chunk recycling handles large scrolls without gaps and reset uses configur
     manager.forEachPosition(z => reset.push(z));
     assert.deepEqual(reset, [-0, -11, -22]);
 });
+
+test('scrolling translates measured bounds exactly like a fresh collider measurement', () => {
+    const coin = new Collectible({ mesh: new Mesh(new BoxGeometry(0.6, 0.6, 0.1), new MeshStandardMaterial()), yOffset: 1 }, () => {});
+    coin.spawn(1.5, 0, -40);
+    coin.animate(0.35);
+    coin.scroll(12.5);
+    coin.scroll(0.45);
+    coin.mesh.updateWorldMatrix(true, true);
+    const measured = new Box3().setFromObject(coin.mesh);
+    for (const corner of ['min', 'max']) {
+        for (const axis of ['x', 'y', 'z']) {
+            assert.ok(Math.abs(coin.boundingBox[corner][axis] - measured[corner][axis]) < 1e-9);
+        }
+    }
+});

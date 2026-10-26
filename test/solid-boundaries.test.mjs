@@ -99,7 +99,7 @@ test('run interactions use hazard and attraction capabilities without touching m
     const hazard = { isActive: true, z: 0, simulate: time => calls.push(['simulate', time]), observe: (...args) => calls.push(['observe', ...args]) };
     const coin = { isActive: true, z: -10, attractTo: (...args) => calls.push(['attract', ...args]) };
     const far = { ...coin, z: -15, attractTo() { throw new Error('out of range'); } };
-    const interactions = new RunInteractions({ elapsed: 5, attractsCoins: true },
+    const interactions = new RunInteractions({ worldTime: 5, attractsCoins: true },
         { currentPose: { ...pose, x: 1.5 }, boundingBox: box, isSliding: true }, [hazard], [coin, far]);
     interactions.prepare(0.1);
     interactions.observe();

@@ -33,8 +33,9 @@ export class Hazard extends Entity {
     }
 
     public simulate(time: number): void {
-        if (!this.isActive) return;
-        this.behavior.motion?.update(time, this.z);
+        // Static hazards keep the bounds measured at spawn; scrolling translates them.
+        if (!this.isActive || !this.behavior.motion) return;
+        this.behavior.motion.update(time, this.z);
         this.syncBounds();
     }
 

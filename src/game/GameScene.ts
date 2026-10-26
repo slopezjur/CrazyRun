@@ -126,8 +126,9 @@ export class GameScene implements IGameplayOutcomes, IGameRuntime {
         score.reset();
         chunks.reset();
         entities.reset();
-        camera.reset();
+        // The camera rests relative to the reset player pose.
         player.reset();
+        camera.reset();
         chunks.forEachPosition(this.spawnInitial);
     }
 

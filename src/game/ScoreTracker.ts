@@ -41,13 +41,18 @@ export class ScoreTracker implements IScoreTracker, IScoreSource {
     }
 
     public addBonus(points: number): void {
-        this.currentScore += points;
-        this.changed.emit(this.score);
+        this.add(points);
     }
 
     public update(speed: number, delta: number): void {
-        this.currentScore += speed * delta;
-        this.changed.emit(this.score);
+        this.add(speed * delta);
+    }
+
+    /** Publishes only visible (integer) score changes, not every fixed tick. */
+    private add(points: number): void {
+        const previous = this.score;
+        this.currentScore += points;
+        if (this.score !== previous) this.changed.emit(this.score);
     }
 
     public finalizeScore(): void {

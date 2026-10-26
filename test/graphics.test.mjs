@@ -85,11 +85,13 @@ test('rendering follows the dynamic game container without overriding its CSS si
     const container = { clientWidth: 412, clientHeight: 700 };
     const viewport = Object.assign(new EventTarget(), { innerWidth: 412, innerHeight: 900, devicePixelRatio: 3 });
     const sizes = [];
-    const renderer = { setSize: (...args) => sizes.push(args), setPixelRatio() {} };
+    const ratios = [];
+    const renderer = { setSize: (...args) => sizes.push(args), setPixelRatio: ratio => ratios.push(ratio) };
     const camera = { aspect: 0, updateProjectionMatrix() {} };
     const binding = new ViewportBinding(renderer, camera, viewport, container);
     t.after(() => binding.dispose());
     assert.equal(observed, container);
+    assert.deepEqual(ratios, [2]);
     assert.deepEqual(sizes.at(-1), [412, 700, false]);
     assert.equal(camera.aspect, 412 / 700);
     container.clientHeight = 620;

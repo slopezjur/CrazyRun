@@ -20,7 +20,7 @@ export interface IAttractable {
 
 export class RunInteractions implements IRunInteractions {
     constructor(
-        private readonly run: Pick<IRunState, 'elapsed' | 'attractsCoins'>,
+        private readonly run: Pick<IRunState, 'worldTime' | 'attractsCoins'>,
         private readonly player: Pick<IPlayerState, 'currentPose' | 'boundingBox' | 'isSliding'>,
         private readonly hazards: readonly IInteractiveHazard[],
         private readonly coins: readonly IAttractable[]
@@ -28,7 +28,7 @@ export class RunInteractions implements IRunInteractions {
 
     public prepare(delta: number): void {
         for (const hazard of this.hazards) {
-            if (hazard.isActive && hazard.z > -200) hazard.simulate(this.run.elapsed);
+            if (hazard.isActive && hazard.z > -200) hazard.simulate(this.run.worldTime);
         }
         if (!this.run.attractsCoins) return;
         const pose = this.player.currentPose;

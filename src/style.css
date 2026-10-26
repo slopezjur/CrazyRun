@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&family=Roboto+Mono:wght@500;700&display=swap');
-
 :root {
   font-family: 'Montserrat', sans-serif;
   line-height: 1.5;
@@ -531,6 +529,11 @@ input[type="checkbox"] { accent-color: #6ff5c9; width: 20px; height: 20px; }
 .share-box label { font-size: 0.8rem; }
 .share-box input { background: #0d1724; border: 1px solid #496478; padding: 0.7rem; border-radius: 8px; color: #e5faff; width: 100%; user-select: text; -webkit-user-select: text; font-size: 0.75rem; }
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { transition: none !important; animation: none !important; }
+.boot-error {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  padding: 2rem; background: rgba(5, 10, 18, 0.94); text-align: center;
+}
+.boot-error p { max-width: 32rem; color: #ffe2a1; font-size: 1rem; line-height: 1.6; }
 
 @media (any-pointer: coarse), (max-width: 768px) {
   #run-mission {

@@ -6,13 +6,15 @@ CrazyRun is a 3D endless runner built with TypeScript, Three.js, and Vite. It in
 
 - **Authored course patterns:** jump/slide sequences and slaloms, with a short safe coin chain and a richer action route. Rows are 80 units apart. Pattern validation reserves an unobstructed lane and at least one second between rows at the 80-unit speed cap. Moving barriers stay inside their reserved lane envelope.
 - **Combos and Crazy Mode:** clean obstacle clears, near misses, and complete coin chains increase the combo. Every five skill actions raise the multiplier, up to ×5. Charge reaches 100 to trigger seven seconds of Crazy Mode: collision protection, coin attraction, a capped speed boost, and a further ×3 multiplier. Seven seconds without a skill action expires the combo; collecting coins maintains a short grace period.
-- **Power-ups:** magnets attract coins for ten seconds, shields absorb one collision with 1.5 seconds of recovery protection, and slow motion scales world movement and player physics to 55% for five seconds. Power-up timers use active simulation time and freeze while paused.
+- **Power-ups:** magnets attract coins for ten seconds, shields absorb one collision with 1.5 seconds of recovery protection, and slow motion scales world movement, hazard motion, and player physics to 55% for five seconds. Power-up timers use active simulation time and freeze while paused.
 - **Biomes:** neon streets, industrial tunnels, and skyline rooftops rotate every 960 units. Moving barriers, lifting gates, and collapsing gap tiles give each biome a different obstacle family.
 - **Spectacle sections:** an advance warning precedes a convoy, tunnel lockdown, or rooftop collapse section. These retain a clear lane. The hovering machine, hazard animations, and warning banner make the section visible before arrival.
 - **Progression:** completed runs bank collected coins and one-time mission rewards. The locker offers three procedural character silhouettes, three outfit colors, and three trail options. Cosmetics do not change physics. Abandoning a run discards its unbanked rewards.
 - **Daily challenges:** every UTC date selects a shared seed and one modifier: double coin points, faster Crazy charge, or a faster starting speed. Challenge links preserve the date and course version. The menu's Play action creates a fresh free-run seed; Try Again repeats the previous course.
 - **Personal ghosts:** race the best recorded score for the same course. Pose recordings are local, non-colliding visual playback. The three most recently saved course ghosts are retained, with at most 6,000 samples per recording; long runs progressively reduce sampling density. Course scores retain up to 32 entries.
 - **Feedback:** particles, cosmetic trails, escalating coin tones, adaptive procedural music, distance milestones, power-up indicators, and a results breakdown of coins, distance, best combo, near misses, chains, and Crazy activations.
+
+If the renderer cannot start (no WebGPU or WebGL 2), a localized message replaces the inert menu.
 
 The settings panel controls motion/effect intensity and ghost visibility. A new profile respects the system's reduced-motion preference. Zero intensity disables optional particles, trails, camera shake, and speed-dependent FOV changes while retaining gameplay indicators. Losing window focus or hiding the page pauses a run. The HUD includes a pause button for touch devices.
 
@@ -33,12 +35,12 @@ Daily challenges and ghosts require no account or server. Sharing copies a URL w
 - **`Engine`** coordinates frame timing, updates, and rendering through an injected render driver.
 - **`SimulationLoop`** runs gameplay at 60 Hz and caps frame deltas at 100 ms. Pause freezes both fixed and frame updates while rendering continues.
 - **`WebGPURenderDriver`** owns renderer initialization, frame submission, and renderer disposal through a narrow backend port. It has no DOM or viewport dependency.
-- **`ViewportBinding`** owns container/window measurements, resize observation, pixel ratio, and camera aspect updates. Its resize targets and observation factory can be substituted independently.
-- **`Diagnostics`** owns the stats panel and state/UPS overlay.
+- **`ViewportBinding`** owns container/window measurements, resize observation, pixel ratio (capped at 2), and camera aspect updates. Its resize targets and observation factory can be substituted independently.
+- **`Diagnostics`** owns the stats panel and state/UPS overlay. Frame timing is measured only with `?debug`.
 
-The player remains at Z = 0. The camera remains behind the player at a fixed Z offset. Track chunks and entities scroll toward positive Z and recycle toward the horizon. Track movement, difficulty, physics, hazard motion, scoring, and pickup animation use fixed updates. World movement is subdivided into steps of at most 0.45 units for collision traversal, preventing thin targets from being skipped at maximum speed. Camera easing, model animation, and decorative effects use frame updates.
+The player remains at Z = 0. The camera remains behind the player at a fixed Z offset. Track chunks and entities scroll toward positive Z and recycle toward the horizon. Track movement, difficulty, physics, hazard motion, scoring, and pickup animation use fixed updates. World movement is subdivided into steps of at most 0.45 units for collision traversal, preventing thin targets from being skipped at maximum speed. Scrolling translates each entity's measured collider bounds; colliders are re-measured only on spawn, hazard motion, rotation, or attraction. Camera easing, model animation, and decorative effects use frame updates.
 
-**`RunSession`** owns active-run statistics, combos, charge, biome boundaries, and gameplay notifications. It receives an **`IRunPowerUps`** port for temporary effects and protection. Its public state is read-only; challenges change through an explicit command. Modifier definitions determine pace and rewards, and the simulation consumes the `IRunSimulation` port. **`Progression`** owns wallet, purchase, mission, preference, and course-record policies through a typed repository. **`GhostReplay`** coordinates separate recording and playback objects through typed storage. Course randomness is derived separately for each pattern and row; cosmetic randomness never advances the course generator.
+**`RunSession`** owns active-run statistics, combos, charge, biome boundaries, and gameplay notifications. Its `elapsed` time drives pace, timers, and ghosts; its `worldTime` is scaled by time-scale effects and drives hazard motion. It receives an **`IRunPowerUps`** port for temporary effects and protection. Its public state is read-only; challenges change through an explicit command. Modifier definitions determine pace and rewards, and the simulation consumes the `IRunSimulation` port. **`Progression`** owns wallet, purchase, mission, preference, and course-record policies through a typed repository. **`GhostReplay`** coordinates separate recording and playback objects through typed storage. Course randomness is derived separately for each pattern and row; cosmetic randomness never advances the course generator.
 
 **`RunCoordinator`** coordinates run start/retry/abandonment, reward settlement, replay capture, and frame updates through injected ports. **`RunOutcomes`** handles hazard hits, clear rewards, coins, and power-ups. **`RunFeedback`** maps run events to registered audio and camera feedback. Browser focus and challenge sharing use dedicated adapters.
 
@@ -46,9 +48,9 @@ The player remains at Z = 0. The camera remains behind the player at a fixed Z o
 
 ### Player and presentation
 
-**`Player`** owns lane movement, gravity, jump and slide rules, an asset-independent gameplay collider, and action notifications. It reads abstract input and sends poses and animation states through **`IPlayerPresentation`**. Character models and their animation bounds do not affect gameplay or daily challenge fairness.
+**`Player`** owns lane movement, gravity, jump and slide rules, an asset-independent gameplay collider, and action notifications. A jump or slide pressed up to 0.12 seconds before touchdown applies on landing. It reads abstract input and sends poses and animation states through **`IPlayerPresentation`**. Character models and their animation bounds do not affect gameplay or daily challenge fairness.
 
-**`PlayerView`** owns the Three.js representation, fallback capsule, character model preparation, material conversion and animation playback. **`AnimationController`** owns animation mixing and transitions. **`Environment`** constructs lighting and shared track visuals; **`CameraManager`** handles tracking, FOV, and crash shake.
+**`PlayerView`** owns the Three.js representation, fallback capsule, character model preparation, material conversion and animation playback. **`AnimationController`** owns animation mixing and transitions. **`Environment`** constructs lighting, a 2048² shadow map fitted to the track between the player and the fog, and shared track visuals; each track chunk draws its lane markings as one merged mesh. **`CameraManager`** handles tracking, FOV, and crash shake.
 
 **`WorldEnvironment`** presents the biome palette, pooled skyline, tunnel frames, and spectacle machine. **`RunEffects`** owns the bounded particle pool, shield indicator, cosmetic trail, and ghost mesh. Procedural robot and comet avatars remain available without external assets. Character factories, outfit colors, and trail colors are registered in `CosmeticVisuals.ts`; adding a variant does not require type branches in `PlayerView`.
 
@@ -87,7 +89,7 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 
 **`ProfileStorage`** and **`GhostStorage`** own JSON encoding, save validation, and version-specific keys. `Progression` and `GhostReplay` receive typed storage ports and contain no serialization code. Existing v1 saves and challenge rules remain compatible. Saved ghost frames are snapshots, so further recording cannot mutate a saved personal best.
 
-**`ScoreTracker`** accumulates distance and bonus points, publishes removable score subscriptions, and persists new records through a storage port.
+**`ScoreTracker`** accumulates distance and bonus points, publishes integer score changes through removable subscriptions, and persists new records through a storage port. `Progression` keeps the 32 most recently played course bests.
 
 **`RunUI`** presents missions, purchases, challenge selection and sharing, live run status, and results through profile/run interfaces. Power-up labels and remaining times come from active metadata and localization. `RunNotices` supplies notification priorities and expiry without DOM dependencies. Mission definitions in `ProgressionRules.ts` calculate both HUD previews and committed progress, including cumulative and maximum-value goals. Purchase eligibility and the Crazy Mode progress fraction also come from domain queries. Static and dynamic labels are localized in English and Spanish. Menus scroll on short displays and support keyboard focus; gameplay key bindings leave focused form controls alone. Diagnostics are hidden unless `?debug` is present in the URL.
 
@@ -112,7 +114,7 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 
 ### Mobile
 
-Swipe left/right to change lanes, up to jump, or down to slide. The bottom-left buttons change lanes; the bottom-right buttons jump and slide. Hold the slide button to continue sliding.
+Swipe left/right to change lanes, up to jump, or down to slide. A jump or slide made just before landing is applied on touchdown. The bottom-left buttons change lanes; the bottom-right buttons jump and slide. Hold the slide button to continue sliding.
 
 Both thumb zones use labeled 56–72 CSS-pixel targets with 12-pixel gaps, inset from display cutouts and the system gesture area in portrait and landscape. Empty space between buttons passes gestures through to the canvas. A swipe triggers once when movement reaches 24 CSS pixels, without waiting for finger release. A finger that starts on a button can slide onto another button to change actions; moving outside the targets releases its hold. Pointer cancellation, loss of capture/focus, page hiding, and game phase changes clear touch tracking and held feedback. Multiple fingers retain independent holds, and native keyboard/assistive button activation produces a single action pulse.
 
@@ -122,7 +124,7 @@ The main menu provides language and mute controls. Scores, locale, and mute sett
 
 ## Development
 
-Use Node.js **22.20+** and npm. The deployment workflow uses Node.js 22. A modern browser with WebGPU support is recommended.
+Use Node.js **22.20+** and npm. The build uses Vite 7 and targets browsers with native top-level await (all WebGPU-capable browsers). The workflow uses Node.js 22. A modern browser with WebGPU support is recommended; Three.js falls back to WebGL 2 otherwise.
 
 ```bash
 npm ci
@@ -140,7 +142,7 @@ npm run build
 npm run preview
 ```
 
-Tests use Node's test runner with `tsx` to import TypeScript source. They cover state and loop boundaries, pause behavior, input pulses and held sources, collision outcomes, pool extensibility, scoring, storage, localization, UI subscriptions, audio disposal, model preparation, and resource ownership. Graphics tests use scene objects and renderer doubles without creating a GPU renderer.
+Tests use Node's test runner with `tsx` to import TypeScript source. They cover state and loop boundaries, pause behavior, input pulses and held sources, collision outcomes, pool extensibility, scoring, storage, localization, UI subscriptions, audio disposal, model preparation, and resource ownership. Graphics tests use scene objects and renderer doubles without creating a GPU renderer. Regression tests cover landing input buffers, slow-motion world time, course-best retention, scrolled collider bounds, integer score publishing, pixel-ratio capping, and interrupted Safari audio.
 
 `test/run-features.test.mjs` adds coverage for challenge links, course invariants, recycled row determinism, biome/event boundaries, chain rewards, power-up expiry, mission accounting, cosmetic persistence, ghost interpolation, pickup reuse, and long-hazard collision edges. Gameplay coverage also compares world progression across render rates. These checks are source tests; they do not replace a browser playthrough of WebGPU rendering and touch layout.
 
@@ -152,4 +154,4 @@ Tests use Node's test runner with `tsx` to import TypeScript source. They cover 
 
 ## Deployment
 
-The GitHub Actions workflow runs tests, builds, and publishes to GitHub Pages on pushes to `main` or manual dispatch. In repository **Settings > Pages**, select **GitHub Actions** as the deployment source. Vite's deployment base is `/CrazyRun/`.
+The GitHub Actions workflow runs tests and builds on pull requests, pushes to `main`, and manual dispatch. Only `main` publishes to GitHub Pages, and a running deployment is never cancelled. In repository **Settings > Pages**, select **GitHub Actions** as the deployment source. Vite's deployment base is `/CrazyRun/`.

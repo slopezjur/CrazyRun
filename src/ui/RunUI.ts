@@ -34,7 +34,8 @@ export class RunUI {
         this.bind('btn-share-daily', () => { void this.share(actions.dailyChallenge()); });
         this.bind('btn-share-run', () => { void this.share(run.challenge); });
         this.bind('btn-close-share', () => { this.element('share-box').hidden = true; });
-        this.element('motion-setting').addEventListener('input', event => {
+        // Persist once the slider settles; every intermediate value would save and rebuild the menu.
+        this.element('motion-setting').addEventListener('change', event => {
             profile.setMotion(Number((event.target as HTMLInputElement).value) / 100);
         }, { signal: this.events.signal });
         this.element('ghost-setting').addEventListener('change', event => {
@@ -98,6 +99,10 @@ export class RunUI {
         this.document.documentElement.style.setProperty('--motion', String(this.profile.motion));
         this.document.documentElement.classList.toggle('reduced-motion', this.profile.motion === 0);
         const wardrobe = this.element('wardrobe');
+        // Rebuilding the locker would otherwise drop keyboard focus after each purchase or equip.
+        const active = this.document.activeElement as HTMLElement | null | undefined;
+        const focusedCosmetic = active?.closest?.('#wardrobe') ? active.dataset.cosmetic : undefined;
+        let refocus: HTMLButtonElement | undefined;
         wardrobe.replaceChildren();
         for (const slot of ['character', 'outfit', 'trail'] as const) {
             const group = this.document.createElement('fieldset');
@@ -113,10 +118,12 @@ export class RunUI {
                 button.disabled = !this.profile.canEquip(item.id);
                 button.textContent = `${this.t('cosmetic_' + item.id)} · ${selected ? this.t('equipped')
                     : this.profile.owns(item.id) ? this.t('equip') : `${item.cost} ${this.t('coins')}`}`;
+                if (item.id === focusedCosmetic) refocus = button;
                 group.append(button);
             }
             wardrobe.append(group);
         }
+        refocus?.focus();
         const missions = this.element('mission-list');
         missions.replaceChildren();
         for (const mission of this.profile.missions) {

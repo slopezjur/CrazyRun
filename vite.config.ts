@@ -1,19 +1,15 @@
 import { defineConfig } from 'vite';
-import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
   base: '/CrazyRun/',
   resolve: {
     alias: [{ find: /^three$/, replacement: 'three/webgpu' }]
   },
-  plugins: [
-    topLevelAwait({
-      promiseExportName: '__tla',
-      promiseImportName: i => `__tla_${i}`
-    })
-  ],
   build: {
+    // The WebGPU bundle uses native top-level await, which every WebGPU-capable browser supports.
     target: 'esnext',
+    // three/webgpu is a single indivisible vendor chunk.
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks(id) {

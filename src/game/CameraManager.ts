@@ -22,9 +22,7 @@ export class CameraManager {
         private camera: THREE.PerspectiveCamera,
         private target: THREE.Object3D
     ) {
-        this.camera.position.set(0, this.yOffset, this.zOffset);
-        this.camera.fov = this.baseFov;
-        this.camera.updateProjectionMatrix();
+        this.reset();
     }
 
     public update(deltaTime: number, globalSpeed: number): void {
@@ -68,8 +66,8 @@ export class CameraManager {
 
     public reset(): void {
         this.shakeIntensity = 0;
-        this.basePosition.set(0, this.yOffset, this.zOffset);
-        this.camera.position.set(0, this.yOffset, this.zOffset);
+        this.basePosition.set(this.target.position.x, this.target.position.y + this.yOffset, this.zOffset);
+        this.camera.position.copy(this.basePosition);
         this.currentFov = this.baseFov;
         this.camera.fov = this.baseFov;
         this.camera.updateProjectionMatrix();

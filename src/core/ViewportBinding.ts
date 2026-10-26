@@ -23,7 +23,9 @@ export class ViewportBinding {
         private readonly camera: Pick<THREE.PerspectiveCamera, 'aspect' | 'updateProjectionMatrix'>,
         private readonly viewport: Window,
         private readonly container?: HTMLElement,
-        observe: ResizeObservationFactory = browserResizeObservation
+        observe: ResizeObservationFactory = browserResizeObservation,
+        // High-density phones gain little visible detail above 2x at a large fill-rate cost.
+        private readonly maxPixelRatio = 2
     ) {
         this.resize();
         viewport.addEventListener('resize', this.resize, { signal: this.events.signal });
@@ -37,7 +39,7 @@ export class ViewportBinding {
         if (this.events.signal.aborted) return;
         const width = Math.max(1, this.container?.clientWidth ?? this.viewport.innerWidth);
         const height = Math.max(1, this.container?.clientHeight ?? this.viewport.innerHeight);
-        const pixelRatio = this.viewport.devicePixelRatio;
+        const pixelRatio = Math.min(this.viewport.devicePixelRatio || 1, this.maxPixelRatio);
         if (width === this.width && height === this.height && pixelRatio === this.pixelRatio) return;
         const ratioChanged = pixelRatio !== this.pixelRatio;
         this.width = width;

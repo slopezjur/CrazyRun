@@ -171,3 +171,15 @@ test('long hazards collide at their leading edge outside the centre proximity ga
     new CollisionManager(subject, { forEachActive(visitor) { visitor(target); } }).checkCollisions();
     assert.equal(collided, true);
 });
+
+test('course bests keep recently improved records when the oldest entries are trimmed', () => {
+    const profile = new Progression(new ProfileStorage(storage()));
+    const daily = 'v1:daily:2026-10-20:coinRush';
+    profile.finish(stats(), 500, daily);
+    for (let run = 0; run < 31; run++) profile.finish(stats(), 100, `v1:free:seed${run}`);
+    profile.finish(stats(), 900, daily);
+    profile.finish(stats(), 100, 'v1:free:latest');
+    assert.equal(profile.best(daily), 900);
+    assert.equal(profile.best('v1:free:seed0'), 0);
+    assert.equal(profile.best('v1:free:latest'), 100);
+});

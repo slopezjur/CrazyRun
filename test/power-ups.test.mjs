@@ -167,3 +167,14 @@ test('Crazy Mode supplies coin attraction independently of registered pickups', 
     run.advance(8, 240);
     assert.equal(run.attractsCoins, false);
 });
+
+test('slow motion scales world time so hazard motion slows with the world', () => {
+    const run = new RunSession(endlessChallenge('slow'), new PowerUpEffects(POWER_UP_DEFINITIONS));
+    run.advance(1, 30);
+    run.pickUp('slow');
+    run.advance(2, 33);
+    assert.equal(run.elapsed, 3);
+    assert.ok(Math.abs(run.worldTime - 2.1) < 1e-9);
+    run.reset();
+    assert.equal(run.worldTime, 0);
+});

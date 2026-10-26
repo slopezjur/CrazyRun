@@ -59,7 +59,9 @@ export class AudioManager implements ISoundPlayer, IAudioControl {
     }
 
     public unlock(): void {
-        if (!this.disposed && this.context.state === 'suspended') {
+        // Safari reports 'interrupted' after calls or backgrounding; it also requires resume().
+        const state: string = this.context.state;
+        if (!this.disposed && state !== 'running' && state !== 'closed') {
             void this.context.resume().catch(() => {});
         }
     }

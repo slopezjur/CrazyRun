@@ -211,3 +211,27 @@ test('pause commands cannot start an uninitialized menu run and resume does not 
     controller.restart();
     assert.equal(resets, 2);
 });
+
+test('jump and slide presses shortly before touchdown are buffered until landing', () => {
+    const input = new InputManager();
+    const view = presentation();
+    const player = new Player(input, view);
+    const actions = [];
+    player.onAction(action => actions.push(action));
+    const step = () => {
+        player.fixedUpdate(1 / 60, 30, true);
+        input.resetTriggers();
+    };
+    input.pulse(InputAction.Jump);
+    step();
+    // Far from touchdown: the press expires before landing.
+    input.pulse(InputAction.Slide);
+    step();
+    while (view.pose.y < 2) step();
+    while (view.pose.y > 1.25) step();
+    input.pulse(InputAction.Slide);
+    step();
+    for (let i = 0; i < 10; i++) step();
+    assert.deepEqual(actions, ['jump', 'slide']);
+    assert.equal(view.animation, 'Slide');
+});

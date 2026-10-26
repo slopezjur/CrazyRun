@@ -43,7 +43,8 @@ export const LOCALES: readonly Locale[] = [
             nearMisses: 'Near misses', chains: 'Coin chains', crazyModes: 'Crazy modes', coinsBanked: 'coins banked',
             keepGoing: 'Mission progress saved. Keep going!', home: 'Main menu', quitRun: 'Abandon run', pause: 'Pause',
             share: 'Share challenge', shareHint: 'Challenge link — copy and send it to a friend.', close: 'Close',
-            totalBest: 'All-time score', results: 'Run results'
+            totalBest: 'All-time score', results: 'Run results',
+            bootError: 'CrazyRun could not start its 3D renderer. Use a recent browser with WebGPU or WebGL 2 enabled, then reload the page.'
         }
     },
     {
@@ -88,7 +89,8 @@ export const LOCALES: readonly Locale[] = [
             nearMisses: 'Esquivas ajustadas', chains: 'Cadenas de monedas', crazyModes: 'Modos Crazy', coinsBanked: 'monedas guardadas',
             keepGoing: 'Progreso de misiones guardado. ¡Sigue así!', home: 'Menú principal', quitRun: 'Abandonar carrera', pause: 'Pausa',
             share: 'Compartir desafío', shareHint: 'Enlace del desafío: cópialo y envíaselo a un amigo.', close: 'Cerrar',
-            totalBest: 'Récord absoluto', results: 'Resultados'
+            totalBest: 'Récord absoluto', results: 'Resultados',
+            bootError: 'CrazyRun no ha podido iniciar el renderizado 3D. Usa un navegador reciente con WebGPU o WebGL 2 activado y recarga la página.'
         }
     }
 ];

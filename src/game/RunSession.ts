@@ -33,6 +33,8 @@ function emptyStats(): RunStats {
 export interface IRunState {
     readonly stats: Readonly<RunStats>;
     readonly elapsed: number;
+    /** Active simulation time scaled by time-scale effects; drives world motion. */
+    readonly worldTime: number;
     readonly combo: number;
     readonly charge: number;
     readonly crazyRemaining: number;
@@ -65,6 +67,7 @@ export interface IRunRewardsPolicy {
 export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRewardsPolicy {
     private statsValue = emptyStats();
     private elapsedValue = 0;
+    private worldTimeValue = 0;
     private comboValue = 0;
     private chargeValue = 0;
     private crazyRemainingValue = 0;
@@ -82,6 +85,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     public selectChallenge(challenge: Challenge): void { this.challengeValue = challenge; }
     public get stats(): Readonly<RunStats> { return this.statsValue; }
     public get elapsed(): number { return this.elapsedValue; }
+    public get worldTime(): number { return this.worldTimeValue; }
     public get combo(): number { return this.comboValue; }
     public get charge(): number { return this.chargeValue; }
     public get crazyRemaining(): number { return this.crazyRemainingValue; }
@@ -105,7 +109,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
     public reset(challenge = this.challenge): void {
         this.challengeValue = challenge;
         this.statsValue = emptyStats();
-        this.elapsedValue = this.comboValue = this.chargeValue = this.crazyRemainingValue = 0;
+        this.elapsedValue = this.worldTimeValue = this.comboValue = this.chargeValue = this.crazyRemainingValue = 0;
         this.graceRemainingValue = this.comboRemaining = 0;
         this.powers.reset();
         this.biomeValue = 'city';
@@ -116,6 +120,7 @@ export class RunSession implements IRunState, IRunEvents, IRunSimulation, IRunRe
 
     public advance(delta: number, distance: number): void {
         this.elapsedValue += delta;
+        this.worldTimeValue += delta * this.powers.timeScale;
         this.statsValue.distance += distance;
         for (const [id, chain] of this.chains) {
             if (chain.expires < this.statsValue.distance) this.chains.delete(id);

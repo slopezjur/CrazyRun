@@ -80,3 +80,13 @@ test('valid saved locale wins, invalid saves fall back to browser locale', () =>
     assert.equal(new I18nService(preference('bad'), 'es-ES', LOCALES).locale.id, 'es');
     assert.equal(new I18nService(preference(null), 'zz-ZZ', LOCALES).locale.id, 'en');
 });
+
+test('score updates publish only visible integer changes', () => {
+    const score = new ScoreTracker({ load: () => 0, save() {} });
+    const updates = [];
+    score.onScoreUpdated(value => updates.push(value));
+    for (let tick = 0; tick < 4; tick++) score.update(30, 1 / 60);
+    score.addBonus(0.2);
+    score.reset();
+    assert.deepEqual(updates, [1, 2, 0]);
+});
