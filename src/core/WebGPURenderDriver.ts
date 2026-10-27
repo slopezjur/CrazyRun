@@ -2,7 +2,7 @@ import type * as THREE from 'three/webgpu';
 import type { IRenderDriver } from './Engine';
 
 export class WebGPURenderDriver implements IRenderDriver {
-    private initialization: Promise<void> | undefined;
+    private initialization: Promise<unknown> | undefined;
     private initialized = false;
     private disposed = false;
 
@@ -30,9 +30,9 @@ export class WebGPURenderDriver implements IRenderDriver {
         if (this.disposed) return;
         this.disposed = true;
         if (this.initialized) {
-            this.renderer.dispose();
+            void this.renderer.dispose();
         } else if (this.initialization) {
-            // Three.js r167 requires initialization before its renderer can be disposed.
+            // The renderer only releases its backend once initialized, so dispose after initialization settles.
             void this.initialization.then(() => this.renderer.dispose(), () => {});
         }
     }

@@ -76,7 +76,7 @@ export function createApplication(document: Document, viewport: Window): Applica
         const loop = lifetime.use(new SimulationLoop(() => state.currentState === GameState.Paused));
         const renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
         const url = new URL(viewport.location.href);
         const debug = url.searchParams.has('debug');
         const diagnostics = lifetime.use(new Diagnostics(document, state, loop, debug));
@@ -198,10 +198,9 @@ export function createApplication(document: Document, viewport: Window): Applica
             touchButtons.reset();
         }));
 
+        // Draco and KTX2 decoders default to the copies bundled with Three.js, so they always match its version.
         const draco = lifetime.use(new DRACOLoader());
-        draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
         const ktx = lifetime.use(new KTX2Loader());
-        ktx.setTranscoderPath('https://unpkg.com/three@0.167.0/examples/jsm/libs/basis/');
         const loader = new GLTFLoader().setDRACOLoader(draco).setKTX2Loader(ktx);
         const assets = new AssetManager(loader, (url, error) => {
             console.warn('Failed to load model from ' + url + '; using the capsule.', error);

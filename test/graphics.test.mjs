@@ -2,12 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AnimationClip, BoxGeometry, Group, Mesh, MeshStandardMaterial, NumberKeyframeTrack, ShaderMaterial, Texture } from 'three';
 import { ResourceManager } from '../src/core/ResourceManager.ts';
-
-// Three.js r167 reads self at module load even when no GPU renderer is constructed.
-globalThis.self ??= globalThis;
-const { PlayerView } = await import('../src/game/graphics/PlayerView.ts');
-const { WebGPURenderDriver } = await import('../src/core/WebGPURenderDriver.ts');
-const { ViewportBinding } = await import('../src/core/ViewportBinding.ts');
+import { PlayerView } from '../src/game/graphics/PlayerView.ts';
+import { WebGPURenderDriver } from '../src/core/WebGPURenderDriver.ts';
+import { ViewportBinding } from '../src/core/ViewportBinding.ts';
 
 test('loaded character materials preserve textures and support material arrays', async () => {
     const resources = new ResourceManager();

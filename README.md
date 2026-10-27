@@ -99,7 +99,7 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 
 **`AdaptiveMusic`** schedules short procedural bass/melody voices from simulation ticks. Combo level, Crazy Mode, and spectacle sections control the arrangement and tempo. The existing mute control applies to both music and effects.
 
-**`AssetManager`** loads GLTF models through an injected loader and reports failures. Draco and KTX2 decoders are configured at the application boundary.
+**`AssetManager`** loads GLTF models through an injected loader and reports failures. Draco and KTX2 loaders are configured at the application boundary and use the decoders bundled with Three.js, which the build emits as same-origin assets.
 
 **`ResourceManager`** disposes shared geometries, materials, direct material textures, skeletons, and lights once per application lifetime. Player presentation also disposes replaced fallback resources and models that arrive after shutdown.
 
@@ -124,7 +124,7 @@ The main menu provides language and mute controls. Scores, locale, and mute sett
 
 ## Development
 
-Use Node.js **22.20+** and npm. The build uses Vite 7 and targets browsers with native top-level await (all WebGPU-capable browsers). The workflow uses Node.js 22. A modern browser with WebGPU support is recommended; Three.js falls back to WebGL 2 otherwise.
+Use Node.js **22.20+** and npm. The build uses Vite 7 with Three.js r186 (`three/webgpu`). The workflow uses Node.js 22. A modern browser with WebGPU support is recommended; Three.js falls back to WebGL 2 otherwise.
 
 ```bash
 npm ci

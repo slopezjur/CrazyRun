@@ -102,7 +102,6 @@ export class PlayerView implements IPlayerPresentation {
         const converted = new Map<THREE.Material, THREE.NodeMaterial>();
         try {
             model.traverse(child => {
-                // GLTFLoader and the WebGPU bundle can use different Three.js constructors.
                 if (!('isMesh' in child) || !child.isMesh) return;
                 const mesh = child as THREE.Mesh;
                 meshes.push(mesh);
