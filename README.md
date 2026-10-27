@@ -4,7 +4,7 @@ CrazyRun is a 3D endless runner built with TypeScript, Three.js, and Vite. It in
 
 ## Gameplay
 
-- **Authored course patterns:** jump/slide sequences and slaloms, with a short safe coin chain and a richer action route. Rows are 80 units apart. Pattern validation reserves an unobstructed lane and at least one second between rows at the 80-unit speed cap. Moving barriers stay inside their reserved lane envelope.
+- **Authored course patterns:** jump/slide sequences and slaloms, with a short safe coin chain and a richer action route. Rows are 80 units apart. Pattern validation reserves an unobstructed lane and at least one second between rows at the 80-unit speed cap. Moving barriers stay inside their reserved lane envelope. Walls, barriers, and convoys stand 2.6 units tall, above the 2.4-unit peak of a jump, so they always require a lane change; hurdles and gaps are jumped, arches and gates are slid under.
 - **Combos and Crazy Mode:** clean obstacle clears, near misses, and complete coin chains increase the combo. Every five skill actions raise the multiplier, up to ×5. Charge reaches 100 to trigger seven seconds of Crazy Mode: collision protection, coin attraction, a capped speed boost, and a further ×3 multiplier. Seven seconds without a skill action expires the combo; collecting coins maintains a short grace period.
 - **Power-ups:** magnets attract coins for ten seconds, shields absorb one collision with 1.5 seconds of recovery protection, and slow motion scales world movement, hazard motion, and player physics to 55% for five seconds. Power-up timers use active simulation time and freeze while paused.
 - **Biomes:** neon streets, industrial tunnels, and skyline rooftops rotate every 960 units. Moving barriers, lifting gates, and collapsing gap tiles give each biome a different obstacle family.
@@ -18,7 +18,7 @@ If the renderer cannot start (no WebGPU or WebGL 2), a localized message replace
 
 The settings panel controls motion/effect intensity and ghost visibility. A new profile respects the system's reduced-motion preference. Zero intensity disables optional particles, trails, camera shake, and speed-dependent FOV changes while retaining gameplay indicators. Losing window focus or hiding the page pauses a run. The HUD includes a pause button for touch devices.
 
-Daily challenges and ghosts require no account or server. Sharing copies a URL when clipboard access is available and always exposes a selectable link. Shared challenges from an older date remain playable. Unsupported course versions are ignored. Increase `COURSE_VERSION` in `Challenge.ts` whenever a gameplay change invalidates course or replay compatibility.
+Daily challenges and ghosts require no account or server. Sharing copies a URL when clipboard access is available and always exposes a selectable link. Shared challenges from an older date remain playable. Unsupported course versions are ignored. Increase `COURSE_VERSION` in `Challenge.ts` whenever a gameplay change invalidates course or replay compatibility. Course version 2 made lane blockers unjumpable, so version 1 links, course bests, and ghosts no longer apply; they age out of storage without migration.
 
 ## Architecture
 
@@ -61,7 +61,7 @@ Character models are optional. Place a model at `public/models/character.glb`; t
 - **`EntityPool`** preallocates entities and reuses inactive instances. It has no scene or rendering dependency.
 - **`EntityManager`** manages registered pools, scrolling, active-target traversal, and reset.
 - **`PatternSpawnPolicy`** is the application's course generator. It selects seeded authored sequences, looks up biome hazard and coin-path definitions, assigns coin-chain identities, and places power-ups after action rows. **`LaneSpawnPolicy`** remains available as a generic weighted spawn policy.
-- **`OBSTACLE_DEFINITIONS`** supplies hurdle, arch, and wall visuals and collider components. The arch collides through its overhead beam, leaving clearance for sliding.
+- **`OBSTACLE_DEFINITIONS`** supplies hurdle, arch, and wall visuals and collider components. The arch collides through its overhead beam, leaving clearance for sliding. `BLOCKER_HEIGHT` sizes walls, barriers, and convoys above the runner's highest jump; a course test checks every biome blocker against the simulated jump peak.
 - **`CollisionManager`** performs Z-proximity and AABB checks and delegates the outcome to each target. A target returns whether traversal should continue; a crash stops the pass.
 - **`Hazard`** owns lifecycle, collision delegation, and one-time clear/near-miss detection. `HAZARD_DEFINITIONS` supplies visuals, slide-clear rules, and optional sway, gate, or collapse motion strategies. Static hazards need no motion implementation. **`RunInteractions`** consumes simulation, observation, and attraction capabilities; each collectible owns its own position/bounds updates.
 - **`Collectible`** explicitly despawns and invokes its configured reward callback. Non-solid objects are not implicitly treated as coins.
@@ -87,7 +87,7 @@ Pooling reduces allocation pressure. Active collision traversal and lane shuffli
 - `crazyrun_profile_v1`: wallet, owned/equipped cosmetics, mission progress, motion/ghost preferences, and course bests.
 - `crazyrun_ghosts_v1`: up to three validated personal-best pose recordings.
 
-**`ProfileStorage`** and **`GhostStorage`** own JSON encoding, save validation, and version-specific keys. `Progression` and `GhostReplay` receive typed storage ports and contain no serialization code. Existing v1 saves and challenge rules remain compatible. Saved ghost frames are snapshots, so further recording cannot mutate a saved personal best.
+**`ProfileStorage`** and **`GhostStorage`** own JSON encoding, save validation, and version-specific keys. `Progression` and `GhostReplay` receive typed storage ports and contain no serialization code. Existing v1 saves remain compatible; course bests and ghosts are keyed by course version. Saved ghost frames are snapshots, so further recording cannot mutate a saved personal best.
 
 **`ScoreTracker`** accumulates distance and bonus points, publishes integer score changes through removable subscriptions, and persists new records through a storage port. `Progression` keeps the 32 most recently played course bests.
 

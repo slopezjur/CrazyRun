@@ -1,4 +1,5 @@
-export const COURSE_VERSION = 1;
+// v2: lane blockers became taller than the highest jump, so v1 bests, ghosts, and links no longer apply.
+export const COURSE_VERSION = 2;
 export const ROW_SPACING = 80;
 export const MAX_SPEED = 80;
 export const BIOME_LENGTH = 960;

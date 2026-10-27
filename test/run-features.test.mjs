@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Box3, BoxGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { dailyChallenge, challengeFromUrl, challengeUrl, endlessChallenge, biomeAt, spectacleAt } from '../src/game/Challenge.ts';
-import { createPattern, validatePattern, PatternSpawnPolicy } from '../src/game/PatternSpawnPolicy.ts';
+import { COURSE_VERSION, dailyChallenge, challengeFromUrl, challengeUrl, endlessChallenge, biomeAt, spectacleAt } from '../src/game/Challenge.ts';
+import { BIOME_COURSES, createPattern, validatePattern, PatternSpawnPolicy } from '../src/game/PatternSpawnPolicy.ts';
+import { InputAction, InputManager } from '../src/core/InputManager.ts';
+import { Player } from '../src/game/Player.ts';
+import { Hazard } from '../src/game/entities/Hazard.ts';
+import { HAZARD_DEFINITIONS } from '../src/game/graphics/EntityVisuals.ts';
 import { createRunSession } from './helpers/run-session.mjs';
 import { ProfileStorage } from '../src/game/storage/ProfileStorage.ts';
 import { GhostStorage } from '../src/game/storage/GhostStorage.ts';
@@ -27,6 +31,7 @@ test('daily links preserve the exact date and rules, and reject invalid versions
     assert.equal(new URL(link).pathname, '/CrazyRun/');
     assert.equal(new URL(link).searchParams.has('debug'), false);
     assert.equal(challengeFromUrl(new URL('https://example.com/?challenge=2026-10-18&v=0')), null);
+    assert.equal(challengeFromUrl(new URL(`https://example.com/?challenge=2026-10-18&v=${COURSE_VERSION - 1}`)), null);
     assert.throws(() => dailyChallenge('2026-02-30'), RangeError);
     assert.equal(challengeUrl('https://example.com/', endlessChallenge('seed')), null);
 });
@@ -182,4 +187,26 @@ test('course bests keep recently improved records when the oldest entries are tr
     assert.equal(profile.best(daily), 900);
     assert.equal(profile.best('v1:free:seed0'), 0);
     assert.equal(profile.best('v1:free:latest'), 100);
+});
+
+test('lane blockers stand taller than the highest jump while hurdles and gaps stay jumpable', () => {
+    // A fine step approaches the continuous jump peak, which slow motion's smaller steps get closest to.
+    const input = new InputManager();
+    const player = new Player(input, { setPose() {}, setAnimation() {}, update() {} });
+    input.pulse(InputAction.Jump);
+    let peak = 0;
+    for (let step = 0; step < 6000; step++) {
+        player.fixedUpdate(1 / 6000, 30, true);
+        input.resetTriggers();
+        peak = Math.max(peak, player.boundingBox.min.y);
+    }
+    const top = id => {
+        const { visual, behavior } = HAZARD_DEFINITIONS.find(definition => definition.id === id).create();
+        const hazard = new Hazard(visual, behavior, () => 'stop', () => {});
+        hazard.spawn(0, 0, 0);
+        return hazard.boundingBox.max.y;
+    };
+    const blockers = new Set(['wall', 'convoy', ...Object.values(BIOME_COURSES).map(course => course.blocker)]);
+    for (const id of blockers) assert.ok(top(id) > peak + 0.1, `${id} (top ${top(id)}) can be jumped; feet peak at ${peak.toFixed(3)}`);
+    for (const id of ['hurdle', 'gap']) assert.ok(top(id) < peak, `${id} can no longer be jumped`);
 });

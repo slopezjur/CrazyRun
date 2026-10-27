@@ -11,6 +11,9 @@ export interface ObstacleDefinition extends SpawnChoice {
     createVisual(): EntityVisual;
 }
 
+/** Lane blockers rise above the runner's highest jump (feet peak at 2.4), so they always force a lane change. */
+export const BLOCKER_HEIGHT = 2.6;
+
 function box(width: number, height: number, depth: number, color: number): THREE.Mesh {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), MaterialFactory.create(color));
     mesh.castShadow = true;
@@ -51,8 +54,8 @@ export const OBSTACLE_DEFINITIONS: readonly ObstacleDefinition[] = [
         id: 'wall', weight: 0.3,
         createVisual: () => {
             const mesh = new THREE.Group();
-            const wall = box(1.3, 2, 0.6, 0xff2222);
-            wall.position.y = 1;
+            const wall = box(1.3, BLOCKER_HEIGHT, 0.6, 0xff2222);
+            wall.position.y = BLOCKER_HEIGHT / 2;
             mesh.add(wall);
             return { mesh, collider: wall };
         }
@@ -94,7 +97,10 @@ export const HAZARD_DEFINITIONS: readonly HazardDefinition[] = [
     {
         id: 'barrier',
         create: () => {
-            const visual = blockVisual({ width: 1.1, height: 1.8, depth: 0.6, color: 0xff5577, y: 0.9, stripDepth: 0.7, stripY: 1.85 });
+            const visual = blockVisual({
+                width: 1.1, height: BLOCKER_HEIGHT, depth: 0.6, color: 0xff5577,
+                y: BLOCKER_HEIGHT / 2, stripDepth: 0.7, stripY: BLOCKER_HEIGHT + 0.05
+            });
             return { visual, behavior: { motion: new SwayMotion(visual.mesh) } };
         }
     },
@@ -118,9 +124,12 @@ export const HAZARD_DEFINITIONS: readonly HazardDefinition[] = [
     {
         id: 'convoy',
         create: () => {
-            const visual = blockVisual({ width: 1.1, height: 2.2, depth: 4, color: 0x6d4cff, y: 1.1, stripDepth: 0.7, stripY: 1.85 });
+            const visual = blockVisual({
+                width: 1.1, height: BLOCKER_HEIGHT, depth: 4, color: 0x6d4cff,
+                y: BLOCKER_HEIGHT / 2, stripDepth: 0.7, stripY: BLOCKER_HEIGHT - 0.35
+            });
             const window = box(0.85, 0.6, 0.05, 0x8fffee);
-            window.position.set(0, 1.5, 2.03);
+            window.position.set(0, BLOCKER_HEIGHT - 0.7, 2.03);
             visual.mesh.add(window);
             return { visual, behavior: { motion: new SwayMotion(visual.mesh) } };
         }

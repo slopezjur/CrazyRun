@@ -160,7 +160,9 @@ test('registered hazards preserve course collider dimensions and deterministic m
     const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.00001);
     close(byId.get('hurdle').boundingBox.max.y, 0.5);
     close(byId.get('arch').boundingBox.min.y, 1.35);
-    close(byId.get('wall').boundingBox.max.y, 2);
+    close(byId.get('wall').boundingBox.max.y, 2.6);
+    close(byId.get('barrier').boundingBox.max.y, 2.6);
+    close(byId.get('convoy').boundingBox.max.y, 2.6);
     close(byId.get('barrier').position.x, 1.72);
     close(byId.get('gate').boundingBox.min.y, 2.65);
     close(byId.get('gap').boundingBox.max.x - byId.get('gap').boundingBox.min.x, 1.3);
